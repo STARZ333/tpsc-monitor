@@ -63,7 +63,7 @@ const CSV_URL = "data/all_people.csv";
 let allRows = [];
 let countChart, occChart;
 
-/** 嚴格時間解析：成功返回 Date，失敗返回 null（不再用 now 兜底） */
+/** 嚴格時間解析：成功返回 Date，失敗返回 null（不兜底到 now） */
 function tsToDateStrict(raw) {
   if (!raw) return null;
   let iso = String(raw).trim();
@@ -84,7 +84,7 @@ function tsToDateStrict(raw) {
     const utcMs = Date.UTC(+Y, +Mo-1, +D, +H, +Mi, +S, ms) - offsetMin*60*1000;
     return new Date(utcMs);
   }
-  // 3) 兜底：原生 Date.parse（可能因環境不同而失敗）
+  // 3) 兜底：原生 Date.parse
   const t = Date.parse(iso);
   return isNaN(t) ? null : new Date(t);
 }
@@ -128,9 +128,9 @@ function makeDataset(label, points) {
   return {
     label,
     data: points,
-    parsing:false,
+    parsing: { xAxisKey:'x', yAxisKey:'y' },  // ← 明确告诉 Chart 字段名
     borderWidth:2,
-    pointRadius:2,      // 單點也可見
+    pointRadius:3,
     hitRadius:6,
     tension:0.2,
     spanGaps:true,
@@ -140,7 +140,7 @@ function makeDataset(label, points) {
 
 function seriesFor(rows, centerName, mode) {
   const base = rows.filter(r => r.name === centerName);
-  // 先解析出時間，過濾掉無效時間
+  // 先解析時間，丟棄無效點
   const mapPoints = (keyArea, keyY) => {
     const pts = [];
     for (const r of base) {
@@ -167,12 +167,17 @@ function firstCenterWithData(rows, candidates) {
 function renderCharts(rows, centerName, mode) {
   const s = seriesFor(rows, centerName, mode);
 
+  // 调试：看看每条线的点数
+  console.log("count datasets:", s.count.map(d => ({label:d.label, n:d.data.length})));
+  console.log("occ   datasets:", s.occ  .map(d => ({label:d.label, n:d.data.length})));
+
   if (countChart) countChart.destroy();
   countChart = new Chart(document.getElementById("chartCount").getContext("2d"), {
     type: "line",
     data: { datasets: s.count },
     options: {
-      parsing:false, animation:false, spanGaps:true,
+      animation:false,
+      spanGaps:true,
       scales: {
         x: { type:'time', time:{ unit:'minute' }, ticks:{ autoSkip:true, maxTicksLimit:12 } },
         y: { beginAtZero:true, title:{ display:true, text:"人數" } }
@@ -186,7 +191,8 @@ function renderCharts(rows, centerName, mode) {
     type: "line",
     data: { datasets: s.occ },
     options: {
-      parsing:false, animation:false, spanGaps:true,
+      animation:false,
+      spanGaps:true,
       scales: {
         x: { type:'time', time:{ unit:'minute' }, ticks:{ autoSkip:true, maxTicksLimit:12 } },
         y: { beginAtZero:true, suggestedMax:100, title:{ display:true, text:"占用率 (%)" } }
@@ -194,12 +200,6 @@ function renderCharts(rows, centerName, mode) {
       plugins: { legend:{ position:'bottom' } }
     }
   });
-
-  // 在控制台输出每個數據集點數，方便排查
-  console.log("datasets count points:",
-    s.count.map(d => ({label:d.label, n:d.data.length})),
-    "occ points:",
-    s.occ.map(d => ({label:d.label, n:d.data.length})));
 }
 
 function updateStatus(allDayRows, centerName) {
