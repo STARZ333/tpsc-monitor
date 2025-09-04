@@ -2,7 +2,7 @@ name: scrape-da-an
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # 每 5 分鐘
+    - cron: "*/1 * * * *"   # 每 5 分鐘
   workflow_dispatch:
 
 permissions:
