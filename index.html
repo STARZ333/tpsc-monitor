@@ -6,19 +6,17 @@
   <title>臺北市運動中心人流監測</title>
   <style>
     :root { --border:#e5e7eb; --muted:#6b7280; }
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC",
-           "PingFang TC", "Microsoft JhengHei", Arial, sans-serif; margin: 24px; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC","PingFang TC","Microsoft JhengHei", Arial, sans-serif; margin: 24px; }
     header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
     .controls { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
     input[type="date"], select { padding:6px 10px; border-radius: 12px; border:1px solid var(--border); }
-    .card { border:1px solid var(--border); border-radius:16px; padding:16px; margin-top:16px;
-            box-shadow:0 2px 6px rgba(0,0,0,0.04); }
+    .card { border:1px solid var(--border); border-radius:16px; padding:16px; margin-top:16px; box-shadow:0 2px 6px rgba(0,0,0,0.04); }
     .muted { color:var(--muted); font-size:0.92rem; }
     .footer { margin-top: 16px; color:var(--muted); font-size:0.85rem; }
     h3 { margin: 6px 0 12px; }
     #status { margin-top: 6px; }
   </style>
-  <!-- Chart.js + Luxon 时间轴适配 -->
+  <!-- Chart.js + Luxon -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
@@ -61,75 +59,75 @@
 </div>
 
 <script>
-const CSV_URL = "data/all_people.csv";   // ← 若你改了文件名，这里也要同步修改
+const CSV_URL = "data/all_people.csv";   // 讀新表
 let allRows = [];
 let countChart, occChart;
 
-/** 兼容 6 位毫秒的 ISO 字符串（裁成 3 位），用 Luxon 解析为 Date */
+/** 兼容 6 位毫秒的 ISO（裁到 3 位），用 Luxon 轉成 Date */
 function tsToDate(iso) {
-  // 例如 2025-09-04T17:35:46.461928+08:00  →  2025-09-04T17:35:46.461+08:00
-  const fixed = iso.replace(/(\.\d{3})\d+(?=[+Z])/, '$1');
+  const fixed = iso.replace(/(\.\d{3})\d+(?=[+Z])/, '$1');  // .123456+08:00 -> .123+08:00
   return luxon.DateTime.fromISO(fixed).toJSDate();
 }
 
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
   if (!lines.length) return [];
-  lines.shift(); // 去掉表头
-  // 字段：timestamp,code,name,area,current,capacity,occupancy_pct
+  lines.shift(); // header
+  // timestamp,code,name,area,current,capacity,occupancy_pct
   return lines.filter(Boolean).map(l => {
-    const parts = l.split(",", 7);
-    return {
-      timestamp: parts[0],
-      code: parts[1],
-      name: parts[2],
-      area: parts[3],
-      current: +parts[4],
-      capacity: +parts[5],
-      occupancy_pct: +parts[6]
-    };
+    const p = l.split(",", 7);
+    return { timestamp: p[0], code: p[1], name: p[2], area: p[3],
+             current: +p[4], capacity: +p[5], occupancy_pct: +p[6] };
   });
 }
 
-function unique(arr) { return Array.from(new Set(arr)); }
+const uniq = a => Array.from(new Set(a));
 
-function dayRows(rows, dateISO) {
+function rowsOfDay(rows, dateISO) {
   return rows.filter(r => r.timestamp.slice(0,10) === dateISO);
 }
 
-function populateCentersForDay(rows, keepCurrent=true) {
-  const sel = document.getElementById("centerSelect");
-  const before = sel.value;
-  const names = unique(rows.map(r => r.name)).sort((a,b)=>a.localeCompare(b, 'zh-Hant'));
+function centersOfDay(rows) {
+  return uniq(rows.map(r => r.name)).sort((a,b)=>a.localeCompare(b, 'zh-Hant'));
+}
+
+function populateCenters(sel, names, keepValue=true) {
+  const prev = sel.value;
   sel.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join("");
-  if (keepCurrent && names.includes(before)) sel.value = before;
+  if (keepValue && names.includes(prev)) sel.value = prev;
 }
 
 function makeDataset(label, points) {
   return { label, data: points, parsing:false, borderWidth:2, pointRadius:0, tension:0.2 };
 }
 
-function buildSeries(rows, centerName, mode) {
+function seriesFor(rows, centerName, mode) {
   const base = rows.filter(r => r.name === centerName);
-  const mkPoints = (label, key) =>
-    base.filter(r => r.area === label)
+  const mk = (area, key) =>
+    base.filter(r => r.area === area)
         .sort((a,b) => a.timestamp.localeCompare(b.timestamp))
-        .map(r => ({ x: tsToDate(r.timestamp), y: (key === "current" ? r.current : r.occupancy_pct) }));
-
+        .map(r => ({ x: tsToDate(r.timestamp), y: key === "current" ? r.current : r.occupancy_pct }));
   const areas = (mode === "both") ? ["游泳池","健身房"] : [mode];
   return {
-    count: areas.map(a => makeDataset(a, mkPoints(a, "current"))),
-    occ:   areas.map(a => makeDataset(a, mkPoints(a, "occ"))),
+    count: areas.map(a => makeDataset(a, mk(a, "current"))),
+    occ:   areas.map(a => makeDataset(a, mk(a, "occ")))
   };
 }
 
+function firstCenterWithData(rows, orderNames) {
+  for (const n of orderNames) {
+    if (rows.some(r => r.name === n)) return n;
+  }
+  return orderNames[0] || "";
+}
+
 function renderCharts(rows, centerName, mode) {
-  const series = buildSeries(rows, centerName, mode);
+  const s = seriesFor(rows, centerName, mode);
 
   if (countChart) countChart.destroy();
   countChart = new Chart(document.getElementById("chartCount").getContext("2d"), {
     type: "line",
-    data: { datasets: series.count },
+    data: { datasets: s.count },
     options: {
       parsing:false, animation:false,
       scales: {
@@ -143,57 +141,67 @@ function renderCharts(rows, centerName, mode) {
   if (occChart) occChart.destroy();
   occChart = new Chart(document.getElementById("chartOcc").getContext("2d"), {
     type: "line",
-    data: { datasets: series.occ },
+    data: { datasets: s.occ },
     options: {
       parsing:false, animation:false,
       scales: {
         x: { type:'time', time:{ unit:'minute' }, ticks:{ autoSkip:true, maxTicksLimit:12 } },
-        y: { beginAtZero:true, title:{ display:true, text:"占用率 (%)" } }
+        y: { beginAtZero:true, suggestedMax:100, title:{ display:true, text:"占用率 (%)" } }
       },
       plugins: { legend:{ position:'bottom' } }
     }
   });
 }
 
-function updateStatus(rows, dateISO, centerName) {
-  const status = document.getElementById("status");
-  if (!rows.length) {
-    status.textContent = `「${dateISO}」暫無資料，等工作流抓到第一筆後再看。`;
-    return;
-  }
-  const lastTs = rows[rows.length - 1].timestamp;
-  const count = rows.filter(r => r.name === centerName).length;
-  status.textContent = `此日共 ${rows.length} 筆；當前中心「${centerName}」有 ${count} 筆。最後一筆：${lastTs}`;
+function updateStatus(allDayRows, centerName) {
+  const el = document.getElementById("status");
+  if (!allDayRows.length) { el.textContent = "當日暫無資料。"; return; }
+  const last = allDayRows[allDayRows.length - 1].timestamp;
+  const cCount = allDayRows.filter(r => r.name === centerName).length;
+  el.textContent = `此日共 ${allDayRows.length} 筆；中心「${centerName}」有 ${cCount} 筆。最後一筆：${last}`;
 }
 
-async function loadAndRender({keepCenter=true} = {}) {
+async function loadAndRender({rebuildCenters=false} = {}) {
+  // 讀 CSV
+  let text = "";
   try {
     const res = await fetch(CSV_URL + "?_=" + Date.now(), { cache:"no-store" });
-    const text = await res.text();
-    allRows = parseCSV(text);
+    text = await res.text();
   } catch (e) {
     console.error("讀取 CSV 失敗：", e);
     return;
   }
+  allRows = parseCSV(text);
 
   const dateISO = document.getElementById("datePicker").value || new Date().toISOString().slice(0,10);
-  const day = dayRows(allRows, dateISO);
+  const day = rowsOfDay(allRows, dateISO);
 
-  if (!day.length) {
-    updateStatus(day, dateISO, "");
+  const sel = document.getElementById("centerSelect");
+  if (rebuildCenters) {
+    const names = centersOfDay(day);
+    populateCenters(sel, names, false);
+  } else if (!sel.options.length) {
+    const names = centersOfDay(day);
+    populateCenters(sel, names, false);
+  }
+
+  // 如果當前選中的中心「這一天沒有任何資料」，自動換到有資料的中心
+  let center = sel.value;
+  if (!day.some(r => r.name === center)) {
+    const names = centersOfDay(day);
+    center = firstCenterWithData(day, names);
+    if (center) sel.value = center;
+  }
+
+  updateStatus(day, center);
+
+  if (!day.length || !center) {
     if (countChart) countChart.destroy();
     if (occChart) occChart.destroy();
-    // 仍要刷新中心下拉（可能为空）
-    populateCentersForDay(day, false);
     return;
   }
 
-  // 先（或在日期切換時）重建中心選單
-  populateCentersForDay(day, keepCenter);
-  const center = document.getElementById("centerSelect").value;
   const mode = document.getElementById("areaMode").value;
-
-  updateStatus(day, dateISO, center);
   renderCharts(day, center, mode);
 }
 
@@ -202,12 +210,12 @@ async function loadAndRender({keepCenter=true} = {}) {
   const today = new Date().toISOString().slice(0,10);
   document.getElementById("datePicker").value = today;
 
-  document.getElementById("datePicker").addEventListener("change", () => loadAndRender({keepCenter:false}));
+  document.getElementById("datePicker").addEventListener("change", () => loadAndRender({rebuildCenters:true}));
   document.getElementById("centerSelect").addEventListener("change", () => loadAndRender());
   document.getElementById("areaMode").addEventListener("change", () => loadAndRender());
 
-  loadAndRender();
-  setInterval(loadAndRender, 30 * 1000);   // 每 30 秒更新頁面資料
+  loadAndRender({rebuildCenters:true});
+  setInterval(() => loadAndRender(), 30 * 1000);   // 每 30 秒刷新
 })();
 </script>
 </body>
