@@ -5,17 +5,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-import requests
-from bs4 import BeautifulSoup
-
 TAIPEI_TZ = ZoneInfo("Asia/Taipei")
 SOURCE_URL = "https://booking-tpsc.sporetrofit.com/Home/LocationPeopleNum"
 TARGET_CENTER = "大安運動中心"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                  "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
-    "Accept-Language": "zh-TW,zh;q=0.9,en;q=0.8",
-}
 
 @dataclass
 class Reading:
@@ -25,73 +17,39 @@ class Reading:
     current: int
     capacity: int
 
-def fetch_html() -> str:
-    with requests.Session() as s:
-        r = s.get(SOURCE_URL, headers=HEADERS, timeout=30)
-        r.raise_for_status()
-        html = r.text
-        return html
-
 def _numbers_after(label_text: str, block: str):
-    """
-    嘗試在 'block' 文字中，於 'label_text' 之後抓兩組數字：目前人數與容量。
-    支援「13人250」、「13 人 / 250」等格式。
-    """
+    """在 block 里找 label 后的「目前人數 / 容量」两组数字。"""
     idx = block.find(label_text)
     if idx == -1:
         return None
-    window = block[idx: idx + 240]
-    # 先嘗試常見格式：13人 / 250
+    window = block[idx: idx + 260]
     m = re.search(r"(\d+)\s*人\s*/?\s*(\d+)", window)
-    if m:
-        return int(m.group(1)), int(m.group(2))
-    # 更寬鬆的抓取
+    if m: return int(m.group(1)), int(m.group(2))
     m = re.search(r"(\d+)\s*人[^0-9]+(\d+)", window, re.DOTALL)
-    if m:
-        return int(m.group(1)), int(m.group(2))
+    if m: return int(m.group(1)), int(m.group(2))
     return None
 
-def parse_readings(html: str) -> list[Reading]:
-    soup = BeautifulSoup(html, "html.parser")
+def parse_readings_from_html(html: str):
+    # 直接在純文本里搜，對結構變更更耐受
+    import bs4
+    soup = bs4.BeautifulSoup(html, "lxml")
     text = soup.get_text(" ", strip=True)
 
     start = text.find(TARGET_CENTER)
     if start == -1:
-        raise RuntimeError(f"頁面中找不到「{TARGET_CENTER}」，可能站點改版或需登入")
-
-    # 找下一個「運動中心」分隔，避免其他館干擾
+        return None, text  # 讓上層判斷是否需要登入
     next_idx = text.find("運動中心", start + len(TARGET_CENTER))
     block = text[start: next_idx] if next_idx != -1 else text[start:]
+
     now = datetime.now(tz=TAIPEI_TZ)
     out = []
-
     pool = _numbers_after("游泳池", block) or _numbers_after("Swimming pool", block)
-    if pool:
-        out.append(Reading(now, TARGET_CENTER, "游泳池", pool[0], pool[1]))
-
+    if pool: out.append(Reading(now, TARGET_CENTER, "游泳池", pool[0], pool[1]))
     gym = (_numbers_after("健身房", block) or
            _numbers_after("Fitness", block) or
            _numbers_after("Gym", block))
-    if gym:
-        out.append(Reading(now, TARGET_CENTER, "健身房", gym[0], gym[1]))
-
-    return out
-
-def try_with_playwright():
-    # 後備：使用 Playwright 渲染後再解析（某些時候頁面用JS注入數據）
-    try:
-        from playwright.sync_api import sync_playwright
-    except Exception as e:
-        raise RuntimeError("需要 Playwright 作為後備解析，但尚未安裝：pip install playwright 並執行 playwright install") from e
-
-    with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(user_agent=HEADERS["User-Agent"])
-        page.goto(SOURCE_URL, timeout=60000)
-        page.wait_for_timeout(3500)  # 等待前端渲染
-        html = page.content()
-        browser.close()
-    return html
+    if gym: out.append(Reading(now, TARGET_CENTER, "健身房", gym[0], gym[1]))
+    return out, text
 
 def append_csv(path: str, readings: list[Reading]):
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
@@ -101,35 +59,118 @@ def append_csv(path: str, readings: list[Reading]):
             f.write("timestamp,center,area,current,capacity,occupancy_pct\n")
         for r in readings:
             pct = (r.current / r.capacity * 100.0) if r.capacity else 0.0
-            line = f"{r.ts.isoformat()},{r.center},{r.area},{r.current},{r.capacity},{pct:.2f}\n"
-            f.write(line)
+            f.write(f"{r.ts.isoformat()},{r.center},{r.area},{r.current},{r.capacity},{pct:.2f}\n")
+
+def fetch_with_playwright():
+    # 只用 Playwright，一上來就開「偽裝腳本」降低自動化特徵
+    from playwright.sync_api import sync_playwright
+
+    user = os.getenv("TPSC_USER")
+    pwd  = os.getenv("TPSC_PASS")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-blink-features=AutomationControlled",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+            ],
+        )
+        ctx = browser.new_context(
+            locale="zh-TW",
+            timezone_id="Asia/Taipei",
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+            ),
+        )
+        # 移除自動化痕跡
+        ctx.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            window.chrome = { runtime: {} };
+            Object.defineProperty(navigator, 'languages', {get: () => ['zh-TW','zh','en']});
+            Object.defineProperty(navigator, 'plugins', {get: () => [1,2,3,4,5]});
+        """)
+        page = ctx.new_page()
+
+        # 先直接打目標頁
+        page.goto(SOURCE_URL, timeout=60000, wait_until="domcontentloaded")
+        page.wait_for_timeout(2500)
+        html = page.content()
+        readings, text = parse_readings_from_html(html)
+        if readings:
+            browser.close()
+            return html, readings
+
+        # 若沒抓到「大安運動中心」，嘗試登入
+        if user and pwd:
+            try:
+                # 若當前就是含登入表單的頁面，直接填；否則回首頁找 login 入口
+                # 1) 先試著找到帳號/密碼欄位
+                def try_login():
+                    # 儘量寬鬆找第一個文字輸入與第一個密碼輸入
+                    acc = page.locator('input[type="text"], input[name*="Account" i]').first
+                    pw  = page.locator('input[type="password"]').first
+                    if acc.count() and pw.count():
+                        acc.fill(user, timeout=5000)
+                        pw.fill(pwd, timeout=5000)
+                        # 按 Enter 或找 Login 按鈕
+                        page.keyboard.press("Enter")
+                        page.wait_for_load_state("networkidle", timeout=15000)
+                        return True
+                    return False
+
+                ok = try_login()
+                if not ok:
+                    page.goto("https://booking-tpsc.sporetrofit.com/", timeout=60000)
+                    page.wait_for_timeout(1000)
+                    # 可能首頁/導覽列有 Login 鍵
+                    try:
+                        page.get_by_text("Login", exact=False).first.click(timeout=3000)
+                        page.wait_for_timeout(1000)
+                    except Exception:
+                        pass
+                    try_login()
+
+                # 登入後再去目標頁
+                page.goto(SOURCE_URL, timeout=60000)
+                page.wait_for_timeout(3000)
+                html = page.content()
+                readings, text = parse_readings_from_html(html)
+                browser.close()
+                return html, readings
+            except Exception:
+                # 忽略登入失敗，走下方保存頁面
+                pass
+
+        # 走到這裡代表仍失敗，返回頁面給上層存檔調試
+        bad_html = page.content()
+        browser.close()
+        return bad_html, None
 
 def main():
-    ap = argparse.ArgumentParser(description="抓取大安運動中心即時人流")
-    ap.add_argument("--csv", default="data/da_an_people.csv", help="資料CSV路徑")
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--csv", default="data/da_an_people.csv")
     args = ap.parse_args()
 
-    # 先用 requests 嘗試
-    readings = []
+    # 用 Playwright 嘗試抓取（含 stealth & 可選登入）
     try:
-        html = fetch_html()
-        readings = parse_readings(html)
+        html, readings = fetch_with_playwright()
     except Exception as e:
-        print("[info] requests 解析失敗，改用 Playwright 後備。原因：", e, file=sys.stderr)
+        print("[error] Playwright 發生例外：", e, file=sys.stderr)
+        sys.exit(2)
 
-    # 後備：Playwright
+    # 失敗時把頁面存檔，便於在 Actions 下載檢查
     if not readings:
-        try:
-            rendered = try_with_playwright()
-            readings = parse_readings(rendered)
-        except Exception as e:
-            print("[error] 後備 Playwright 解析仍失敗：", e, file=sys.stderr)
-            sys.exit(2)
-
-    if not readings:
-        print("[warn] 沒有解析到任何人數，跳過。", file=sys.stderr)
+        os.makedirs("data", exist_ok=True)
+        with open("data/last_page.html", "w", encoding="utf-8") as f:
+            f.write(html)
+        print("[warn] 仍未解析到任何人數，已保存 data/last_page.html 供檢查。", file=sys.stderr)
         sys.exit(0)
 
+    # 成功
+    from pprint import pformat
     append_csv(args.csv, readings)
     print("[OK] 抓取完成：", " | ".join(f"{r.area} {r.current}/{r.capacity}" for r in readings))
 
