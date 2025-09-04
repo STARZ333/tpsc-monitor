@@ -59,125 +59,169 @@
 </div>
 
 <script>
-const CSV_URL = "data/all_people.csv";
+const CSV_URL = "data/all_people.csv";   // 與工作流輸出一致
 let allRows = [];
 let countChart, occChart;
 
-// 修正時間字串 (裁剪到 3 位毫秒)，用 Luxon 轉 Date
+/** 兼容 6 位毫秒的 ISO（裁到 3 位），用 Luxon 轉成 Date；失敗則回退原生 Date.parse */
 function tsToDate(iso) {
-  const fixed = iso.replace(/(\.\d{3})\d+(?=[+Z])/, '$1');
-  return luxon.DateTime.fromISO(fixed).toJSDate();
+  const fixed = iso.replace(/(\.\d{3})\d+(?=[+Z])/, '$1');  // .123456+08:00 -> .123+08:00
+  const dt = luxon.DateTime.fromISO(fixed);
+  if (dt.isValid) return dt.toJSDate();
+  const t = Date.parse(iso);
+  return isNaN(t) ? new Date() : new Date(t);
 }
 
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
   if (!lines.length) return [];
-  lines.shift(); // 去掉表头
-  return lines.map(l => {
-    const [timestamp, code, name, area, current, capacity, occ] = l.split(",", 7);
-    return { timestamp, code, name, area, current:+current, capacity:+capacity, occupancy_pct:+occ };
+  lines.shift(); // header
+  // timestamp,code,name,area,current,capacity,occupancy_pct
+  return lines.filter(Boolean).map(l => {
+    const p = l.split(",", 7);
+    // 做 trim，防止不可視空白導致篩選不到
+    return {
+      timestamp: p[0],
+      code: (p[1]||"").trim(),
+      name: (p[2]||"").trim(),
+      area: (p[3]||"").trim(),
+      current: +(p[4]||0),
+      capacity: +(p[5]||0),
+      occupancy_pct: +(p[6]||0)
+    };
   });
 }
 
-function uniq(arr) { return Array.from(new Set(arr)); }
-function rowsOfDay(rows, dateISO) { return rows.filter(r => r.timestamp.slice(0,10) === dateISO); }
-function centersOfDay(rows) { return uniq(rows.map(r => r.name)).sort((a,b)=>a.localeCompare(b,'zh-Hant')); }
+const uniq = a => Array.from(new Set(a));
+
+function rowsOfDay(rows, dateISO) {
+  return rows.filter(r => r.timestamp.slice(0,10) === dateISO);
+}
+
+function centersOfDay(rows) {
+  return uniq(rows.map(r => r.name)).sort((a,b)=>a.localeCompare(b, 'zh-Hant'));
+}
+
+function populateCenters(sel, names, keepValue=true) {
+  const prev = sel.value;
+  sel.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join("");
+  if (keepValue && names.includes(prev)) sel.value = prev;
+}
 
 function makeDataset(label, points) {
   return { label, data: points, parsing:false, borderWidth:2, pointRadius:0, tension:0.2 };
 }
 
-function buildSeries(rows, center, mode) {
-  const base = rows.filter(r => r.name === center);
+function seriesFor(rows, centerName, mode) {
+  const base = rows.filter(r => r.name === centerName);
   const mk = (area, key) =>
     base.filter(r => r.area === area)
-        .sort((a,b)=>a.timestamp.localeCompare(b.timestamp))
-        .map(r => ({ x: tsToDate(r.timestamp), y: key==="current" ? r.current : r.occupancy_pct }));
-  const areas = (mode==="both") ? ["游泳池","健身房"] : [mode];
+        .sort((a,b) => a.timestamp.localeCompare(b.timestamp))
+        .map(r => ({ x: tsToDate(r.timestamp), y: key === "current" ? r.current : r.occupancy_pct }));
+  const areas = (mode === "both") ? ["游泳池","健身房"] : [mode];
   return {
-    count: areas.map(a => makeDataset(a, mk(a,"current"))),
-    occ:   areas.map(a => makeDataset(a, mk(a,"occ")))
+    count: areas.map(a => makeDataset(a, mk(a, "current"))),
+    occ:   areas.map(a => makeDataset(a, mk(a, "occ")))
   };
 }
 
-function render(rows, center, mode) {
-  const s = buildSeries(rows, center, mode);
+function firstCenterWithData(rows, candidates) {
+  for (const n of candidates) if (rows.some(r => r.name === n)) return n;
+  return candidates[0] || "";
+}
+
+function renderCharts(rows, centerName, mode) {
+  const s = seriesFor(rows, centerName, mode);
 
   if (countChart) countChart.destroy();
   countChart = new Chart(document.getElementById("chartCount").getContext("2d"), {
-    type:"line", data:{datasets:s.count},
-    options:{
+    type: "line",
+    data: { datasets: s.count },
+    options: {
       parsing:false, animation:false,
-      scales:{
-        x:{ type:'time', time:{unit:'minute'}, ticks:{autoSkip:true,maxTicksLimit:12} },
-        y:{ beginAtZero:true, title:{display:true,text:"人數"} }
+      scales: {
+        x: { type:'time', time:{ unit:'minute' }, ticks:{ autoSkip:true, maxTicksLimit:12 } },
+        y: { beginAtZero:true, title:{ display:true, text:"人數" } }
       },
-      plugins:{ legend:{position:'bottom'} }
+      plugins: { legend:{ position:'bottom' } }
     }
   });
 
   if (occChart) occChart.destroy();
   occChart = new Chart(document.getElementById("chartOcc").getContext("2d"), {
-    type:"line", data:{datasets:s.occ},
-    options:{
+    type: "line",
+    data: { datasets: s.occ },
+    options: {
       parsing:false, animation:false,
-      scales:{
-        x:{ type:'time', time:{unit:'minute'}, ticks:{autoSkip:true,maxTicksLimit:12} },
-        y:{ beginAtZero:true, suggestedMax:100, title:{display:true,text:"占用率 (%)"} }
+      scales: {
+        x: { type:'time', time:{ unit:'minute' }, ticks:{ autoSkip:true, maxTicksLimit:12 } },
+        y: { beginAtZero:true, suggestedMax:100, title:{ display:true, text:"占用率 (%)" } }
       },
-      plugins:{ legend:{position:'bottom'} }
+      plugins: { legend:{ position:'bottom' } }
     }
   });
 }
 
-function updateStatus(dayRows, center) {
+function updateStatus(allDayRows, centerName) {
   const el = document.getElementById("status");
-  if (!dayRows.length) { el.textContent = "當日暫無資料。"; return; }
-  const last = dayRows[dayRows.length-1].timestamp;
-  const cCount = dayRows.filter(r => r.name===center).length;
-  el.textContent = `此日共 ${dayRows.length} 筆；中心「${center}」有 ${cCount} 筆。最後一筆：${last}`;
+  if (!allDayRows.length) { el.textContent = "當日暫無資料。"; return; }
+  const last = allDayRows[allDayRows.length - 1].timestamp;
+  const cCount = allDayRows.filter(r => r.name === centerName).length;
+  el.textContent = `此日共 ${allDayRows.length} 筆；中心「${centerName}」有 ${cCount} 筆。最後一筆：${last}`;
 }
 
-async function loadAndRender() {
-  let text="";
+async function loadAndRender({rebuildCenters=false} = {}) {
+  // 讀 CSV
+  let text = "";
   try {
-    const res = await fetch(CSV_URL+"?_="+Date.now(), {cache:"no-store"});
+    const res = await fetch(CSV_URL + "?_=" + Date.now(), { cache:"no-store" });
     text = await res.text();
-  } catch(e){ console.error("CSV 載入失敗", e); return; }
+  } catch (e) {
+    console.error("讀取 CSV 失敗：", e);
+    return;
+  }
   allRows = parseCSV(text);
 
   const dateISO = document.getElementById("datePicker").value || new Date().toISOString().slice(0,10);
   const day = rowsOfDay(allRows, dateISO);
-  const sel = document.getElementById("centerSelect");
 
-  // 初始化中心列表
-  if (!sel.options.length) {
+  const sel = document.getElementById("centerSelect");
+  if (rebuildCenters || !sel.options.length) {
     const names = centersOfDay(day);
-    sel.innerHTML = names.map(n=>`<option value="${n}">${n}</option>`).join("");
+    populateCenters(sel, names, false);
   }
+
+  // 若選中的中心在這一天沒有任何資料，則自動切換到第一個有資料的中心
   let center = sel.value;
-  if (!day.some(r=>r.name===center)) {
+  if (!day.some(r => r.name === center)) {
     const names = centersOfDay(day);
-    center = names[0] || "";
-    sel.value = center;
+    center = firstCenterWithData(day, names);
+    if (center) sel.value = center;
+  }
+
+  updateStatus(day, center);
+
+  if (!day.length || !center) {
+    if (countChart) countChart.destroy();
+    if (occChart) occChart.destroy();
+    return;
   }
 
   const mode = document.getElementById("areaMode").value;
-  updateStatus(day, center);
-
-  if (day.length && center) render(day, center, mode);
+  renderCharts(day, center, mode);
 }
 
-// 初始化控件
+// 初始化
 (function init(){
   const today = new Date().toISOString().slice(0,10);
   document.getElementById("datePicker").value = today;
-  document.getElementById("datePicker").addEventListener("change", loadAndRender);
-  document.getElementById("centerSelect").addEventListener("change", loadAndRender);
-  document.getElementById("areaMode").addEventListener("change", loadAndRender);
 
-  loadAndRender();
-  setInterval(loadAndRender, 30*1000);
+  document.getElementById("datePicker").addEventListener("change", () => loadAndRender({rebuildCenters:true}));
+  document.getElementById("centerSelect").addEventListener("change", () => loadAndRender());
+  document.getElementById("areaMode").addEventListener("change", () => loadAndRender());
+
+  loadAndRender({rebuildCenters:true});
+  setInterval(() => loadAndRender(), 30 * 1000);   // 每 30 秒刷新
 })();
 </script>
 </body>
