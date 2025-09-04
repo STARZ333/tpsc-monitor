@@ -63,36 +63,30 @@ const CSV_URL = "data/all_people.csv";
 let allRows = [];
 let countChart, occChart;
 
-/** 盡量強韌的時間解析器：裁毫秒到3位 → Luxon → 正則手工解析 → Date.parse */
-function tsToDate(raw) {
-  const iso = (raw || "").trim();
-  // 把 .123456+08:00 裁為 .123+08:00
-  const fixed = iso.replace(/(\.\d{3})\d+(?=[+Z])/, '$1');
-
-  // 1) 優先走 Luxon
-  const dt = luxon.DateTime.fromISO(fixed);
+/** 嚴格時間解析：成功返回 Date，失敗返回 null（不再用 now 兜底） */
+function tsToDateStrict(raw) {
+  if (!raw) return null;
+  let iso = String(raw).trim();
+  // 把 .123456+08:00 → .123+08:00
+  iso = iso.replace(/(\.\d{3})\d+(?=[+Z])/, '$1');
+  // 1) Luxon
+  const dt = luxon.DateTime.fromISO(iso);
   if (dt.isValid) return dt.toJSDate();
-
-  // 2) 正則手工解析（YYYY-MM-DDTHH:mm:ss(.ffffff)?(+/-HH:MM)?）
-  const m = fixed.match(
-    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?([+-]\d{2}):?(\d{2})?$/
-  );
+  // 2) 正則手工解析
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?([+-]\d{2}):?(\d{2})?$/);
   if (m) {
     const [_, Y, Mo, D, H, Mi, S, frac="0", offH="+00", offM="00"] = m;
-    const ms = Math.floor(parseInt(frac.padEnd(3, '0').slice(0,3), 10)); // 取前三位毫秒
-    const tzSign = (offH.startsWith('-') ? -1 : 1);
-    const tzHours = Math.abs(parseInt(offH,10));
-    const tzMins  = parseInt(offM,10);
-    const offsetMin = tzSign * (tzHours*60 + tzMins);
-
-    // 先當成本地 ISO，再轉為 UTC 毫秒
+    const ms = Math.floor(parseInt(frac.padEnd(3, '0').slice(0,3), 10));
+    const sign = offH.startsWith('-') ? -1 : 1;
+    const oh = Math.abs(parseInt(offH,10)) || 0;
+    const om = parseInt(offM||"0",10) || 0;
+    const offsetMin = sign * (oh*60 + om);
     const utcMs = Date.UTC(+Y, +Mo-1, +D, +H, +Mi, +S, ms) - offsetMin*60*1000;
     return new Date(utcMs);
   }
-
-  // 3) 最後兜底
-  const t = Date.parse(fixed);
-  return isNaN(t) ? new Date() : new Date(t);
+  // 3) 兜底：原生 Date.parse（可能因環境不同而失敗）
+  const t = Date.parse(iso);
+  return isNaN(t) ? null : new Date(t);
 }
 
 function parseCSV(text) {
@@ -139,20 +133,29 @@ function makeDataset(label, points) {
     pointRadius:2,      // 單點也可見
     hitRadius:6,
     tension:0.2,
+    spanGaps:true,
     showLine:true
   };
 }
 
 function seriesFor(rows, centerName, mode) {
   const base = rows.filter(r => r.name === centerName);
-  const mk = (area, key) =>
-    base.filter(r => r.area === area)
-        .sort((a,b) => a.timestamp.localeCompare(b.timestamp))
-        .map(r => ({ x: tsToDate(r.timestamp), y: key === "current" ? r.current : r.occupancy_pct }));
+  // 先解析出時間，過濾掉無效時間
+  const mapPoints = (keyArea, keyY) => {
+    const pts = [];
+    for (const r of base) {
+      if (r.area !== keyArea) continue;
+      const d = tsToDateStrict(r.timestamp);
+      if (!d) continue;
+      pts.push({ x: d, y: keyY === "current" ? r.current : r.occupancy_pct });
+    }
+    pts.sort((a,b) => a.x - b.x);
+    return pts;
+  };
   const areas = (mode === "both") ? ["游泳池","健身房"] : [mode];
   return {
-    count: areas.map(a => makeDataset(a, mk(a, "current"))),
-    occ:   areas.map(a => makeDataset(a, mk(a, "occ")))
+    count: areas.map(a => makeDataset(a, mapPoints(a, "current"))),
+    occ:   areas.map(a => makeDataset(a, mapPoints(a, "occ")))
   };
 }
 
@@ -169,8 +172,7 @@ function renderCharts(rows, centerName, mode) {
     type: "line",
     data: { datasets: s.count },
     options: {
-      parsing:false, animation:false,
-      spanGaps:true,
+      parsing:false, animation:false, spanGaps:true,
       scales: {
         x: { type:'time', time:{ unit:'minute' }, ticks:{ autoSkip:true, maxTicksLimit:12 } },
         y: { beginAtZero:true, title:{ display:true, text:"人數" } }
@@ -184,8 +186,7 @@ function renderCharts(rows, centerName, mode) {
     type: "line",
     data: { datasets: s.occ },
     options: {
-      parsing:false, animation:false,
-      spanGaps:true,
+      parsing:false, animation:false, spanGaps:true,
       scales: {
         x: { type:'time', time:{ unit:'minute' }, ticks:{ autoSkip:true, maxTicksLimit:12 } },
         y: { beginAtZero:true, suggestedMax:100, title:{ display:true, text:"占用率 (%)" } }
@@ -193,14 +194,20 @@ function renderCharts(rows, centerName, mode) {
       plugins: { legend:{ position:'bottom' } }
     }
   });
+
+  // 在控制台输出每個數據集點數，方便排查
+  console.log("datasets count points:",
+    s.count.map(d => ({label:d.label, n:d.data.length})),
+    "occ points:",
+    s.occ.map(d => ({label:d.label, n:d.data.length})));
 }
 
 function updateStatus(allDayRows, centerName) {
   const el = document.getElementById("status");
   if (!allDayRows.length) { el.textContent = "當日暫無資料。"; return; }
   const last = allDayRows[allDayRows.length - 1].timestamp;
-  const cCount = allDayRows.filter(r => r.name === centerName).length;
-  el.textContent = `此日共 ${allDayRows.length} 筆；中心「${centerName}」有 ${cCount} 筆。最後一筆：${last}`;
+  const cRows = allDayRows.filter(r => r.name === centerName);
+  el.textContent = `此日共 ${allDayRows.length} 筆；中心「${centerName}」有 ${cRows.length} 筆。最後一筆：${last}`;
 }
 
 async function loadAndRender({rebuildCenters=false} = {}) {
