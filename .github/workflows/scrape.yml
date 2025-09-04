@@ -33,6 +33,16 @@ jobs:
       - name: Run scraper
         run: |
           python scrape_da_an.py --csv data/da_an_people.csv
+          
+      - name: Upload debug snapshot (if exists)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-html
+          path: |
+            data/last_page.html
+            data/last_page.png
+          if-no-files-found: ignore
 
       - name: Commit & push if changed
         run: |
