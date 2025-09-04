@@ -3,18 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>臺北市運動中心人流監測（全館）</title>
+  <title>臺北市運動中心人流監測</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", Arial, sans-serif; margin: 24px; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC",
+           "Microsoft JhengHei", Arial, sans-serif; margin: 24px; }
     header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
     .controls { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
-    .chips { display:flex; flex-wrap:wrap; gap:8px; max-height: 160px; overflow:auto; padding:8px; border:1px solid #e5e7eb; border-radius:12px; }
-    .chip { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border:1px solid #e5e7eb; border-radius:999px; }
-    .muted { color:#6b7280; font-size: 0.9rem; }
-    .footer { margin-top: 18px; color:#6b7280; font-size:0.85rem; }
-    input[type="date"] { padding:6px 8px; border-radius: 10px; border:1px solid #e5e7eb; }
-    label { font-size: 0.9rem; color:#374151; }
-    .msg { margin-top: 8px; color:#6b7280; }
+    input[type="date"], select { padding:6px 8px; border-radius: 10px; border:1px solid #e5e7eb; }
+    .card { border:1px solid #e5e7eb; border-radius:16px; padding:16px; margin-top:16px; box-shadow:0 2px 6px rgba(0,0,0,0.04); }
+    .muted { color:#6b7280; font-size:0.9rem; }
+    .footer { margin-top: 16px; color:#6b7280; font-size:0.85rem; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js"></script>
@@ -23,158 +21,151 @@
 <body>
 <header>
   <div>
-    <h1>臺北市運動中心人流監測（全館）</h1>
-    <div class="muted">數據每次工作流抓取後追加保存；本頁每 <b>30 秒</b> 自動更新。</div>
+    <h1>臺北市運動中心人流監測</h1>
+    <div class="muted">資料每 1 分鐘抓取追加保存；本頁每 <b>30 秒</b> 自動刷新。</div>
   </div>
   <div class="controls">
-    <label>日期： <input type="date" id="datePicker"></label>
-    <label>
-      區域：
-      <select id="areaSelect">
-        <option value="游泳池">游泳池</option>
-        <option value="健身房">健身房</option>
+    <label>日期：<input type="date" id="datePicker"></label>
+    <label>運動中心：
+      <select id="centerSelect"></select>
+    </label>
+    <label>顯示：
+      <select id="areaMode">
+        <option value="both">游泳池 + 健身房</option>
+        <option value="游泳池">只看 游泳池</option>
+        <option value="健身房">只看 健身房</option>
       </select>
     </label>
-    <button id="selectAll">全選</button>
-    <button id="clearAll">全不選</button>
   </div>
 </header>
 
-<section style="margin-top:16px">
-  <div style="margin-bottom:8px">選擇要顯示的館：</div>
-  <div id="centerChips" class="chips"></div>
-  <div class="msg" id="statusMsg"></div>
-  <canvas id="chart" height="110"></canvas>
-</section>
+<div class="card">
+  <h3>人數（current） vs 時間</h3>
+  <canvas id="chartCount" height="110"></canvas>
+</div>
+<div class="card">
+  <h3>占用率（%） vs 時間</h3>
+  <canvas id="chartOcc" height="110"></canvas>
+</div>
 
 <div class="footer">
-  資料來源：<a href="https://booking-tpsc.sporetrofit.com/Home/LocationPeopleNum" target="_blank" rel="noopener">臺北市運動中心預約系統</a>。
+  資料來源：<a href="https://booking-tpsc.sporetrofit.com/Home/LocationPeopleNum" target="_blank">臺北市運動中心預約系統</a>
 </div>
 
 <script>
-const CSV_URL = "data/da_an_people.csv"; // 若你換成 all_people.csv，這裡也要改
-let chart;
+const CSV_URL = "data/all_people.csv";   // 改讀新的 CSV
+let countChart, occChart, allRowsCache = [];
 
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
+  if (!lines.length) return [];
   const header = lines.shift().split(",");
-  // header: timestamp,code,name,area,current,capacity,occupancy_pct
+  // timestamp,code,name,area,current,capacity,occupancy_pct
   return lines.filter(Boolean).map(l => {
-    const [timestamp, code, name, area, current, capacity] = l.split(",", 7);
-    return {
-      timestamp, code, name, area,
-      current: +current, capacity: +capacity
-    };
+    const [timestamp, code, name, area, current, capacity, occ] = l.split(",", 7);
+    return { timestamp, code, name, area, current:+current, capacity:+capacity, occupancy_pct:+occ };
   });
 }
 
-function groupBy(arr, keyFn) {
-  const m = new Map();
-  for (const r of arr) {
-    const k = keyFn(r);
-    if (!m.has(k)) m.set(k, []);
-    m.get(k).push(r);
-  }
-  return m;
-}
-
-function buildChips(centerNames) {
-  const wrap = document.getElementById("centerChips");
-  wrap.innerHTML = "";
-  for (const name of centerNames) {
-    const id = "chk_" + name;
-    const chip = document.createElement("label");
-    chip.className = "chip";
-    chip.innerHTML = `<input type="checkbox" id="${id}" checked> ${name}`;
-    wrap.appendChild(chip);
-  }
-}
-
-function getSelectedCenters() {
-  const wrap = document.getElementById("centerChips");
-  return Array.from(wrap.querySelectorAll("input[type=checkbox]:checked")).map(x =>
-    x.id.replace(/^chk_/, "")
-  );
-}
+function unique(arr) { return Array.from(new Set(arr)); }
 
 function makeDataset(label, points) {
   return { label, data: points, parsing:false, borderWidth:2, pointRadius:0, tension:0.2 };
 }
 
-function updateChart(rows) {
-  const area = document.getElementById("areaSelect").value;
-  const dayRows = rows.filter(r => r.area === area);
-  const selected = new Set(getSelectedCenters());
+function populateCenterSelect(rows) {
+  const sel = document.getElementById("centerSelect");
+  const names = unique(rows.map(r => r.name)).sort();
+  sel.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join("");
+}
 
-  const byCenter = groupBy(dayRows.filter(r => selected.has(r.name)), r => r.name);
-  const datasets = [];
-  for (const [name, list] of byCenter.entries()) {
-    list.sort((a,b) => a.timestamp.localeCompare(b.timestamp));
-    datasets.push( makeDataset(name, list.map(r => ({x:new Date(r.timestamp), y:r.current}))) );
+function filterByDay(rows, dateISO) {
+  return rows.filter(r => r.timestamp.slice(0,10) === dateISO);
+}
+
+function buildSeries(rows, centerName, areaMode) {
+  const subset = rows.filter(r => r.name === centerName);
+  const mk = (label, key) => {
+    const pts = subset.filter(r => (areaMode==="both" ? true : r.area===label))
+                      .filter(r => r.area === label)
+                      .sort((a,b) => a.timestamp.localeCompare(b.timestamp))
+                      .map(r => ({x:new Date(r.timestamp), y: key==="current" ? r.current : r.occupancy_pct}));
+    return pts;
+  };
+  const series = [];
+  if (areaMode==="both" || areaMode==="游泳池") series.push({label:"游泳池", key:"游泳池"});
+  if (areaMode==="both" || areaMode==="健身房") series.push({label:"健身房", key:"健身房"});
+  return {
+    count: series.map(s => makeDataset(s.label, mk(s.label, "current"))),
+    occ:   series.map(s => makeDataset(s.label, mk(s.label, "occ"))),
+  };
+}
+
+function render(centerName, dateISO, areaMode) {
+  const dayRows = filterByDay(allRowsCache, dateISO);
+  if (!dayRows.length) {
+    if (countChart) countChart.destroy();
+    if (occChart) occChart.destroy();
+    return;
   }
+  if (!centerName) {
+    populateCenterSelect(dayRows);
+    centerName = document.getElementById("centerSelect").value;
+  }
+  const series = buildSeries(dayRows, centerName, areaMode);
 
-  if (chart) chart.destroy();
-  const ctx = document.getElementById("chart").getContext("2d");
-  chart = new Chart(ctx, {
+  if (countChart) countChart.destroy();
+  const ctx1 = document.getElementById("chartCount").getContext("2d");
+  countChart = new Chart(ctx1, {
     type: "line",
-    data: { datasets },
+    data: { datasets: series.count },
     options: {
-      parsing:false,
-      animation:false,
+      parsing:false, animation:false,
       scales: {
         x: { type:'time', time:{ unit:'minute' }, ticks:{ autoSkip:true, maxTicksLimit:12 } },
-        y: { beginAtZero:true, title: { display:true, text: "人數" } }
+        y: { beginAtZero:true, title:{ display:true, text:"人數" } }
       },
-      plugins: { legend: { position:'bottom' } }
+      plugins: { legend:{ position:'bottom' } }
+    }
+  });
+
+  if (occChart) occChart.destroy();
+  const ctx2 = document.getElementById("chartOcc").getContext("2d");
+  occChart = new Chart(ctx2, {
+    type: "line",
+    data: { datasets: series.occ },
+    options: {
+      parsing:false, animation:false,
+      scales: {
+        x: { type:'time', time:{ unit:'minute' }, ticks:{ autoSkip:true, maxTicksLimit:12 } },
+        y: { beginAtZero:true, title:{ display:true, text:"占用率 (%)" } }
+      },
+      plugins: { legend:{ position:'bottom' } }
     }
   });
 }
 
-async function loadAndRender() {
-  const status = document.getElementById("statusMsg");
-  status.textContent = "載入中…";
+async function loadCSVAndRender() {
   const res = await fetch(CSV_URL + "?_=" + Date.now(), { cache:"no-store" });
   const text = await res.text();
-  const allRows = parseCSV(text);
+  allRowsCache = parseCSV(text);
 
-  const datePick = document.getElementById("datePicker").value;
-  const day = datePick || new Date().toISOString().slice(0,10);
-  const rows = allRows.filter(r => r.timestamp.slice(0,10) === day);
-
-  // 第一次：建館清單
-  const wrap = document.getElementById("centerChips");
-  if (!wrap.childElementCount) {
-    const centers = Array.from(new Set(rows.map(r => r.name))).sort();
-    buildChips(centers);
-    document.getElementById("centerChips").addEventListener("change", () => updateChart(rows));
-    document.getElementById("selectAll").onclick = () => {
-      wrap.querySelectorAll("input[type=checkbox]").forEach(c => c.checked = true);
-      updateChart(rows);
-    };
-    document.getElementById("clearAll").onclick = () => {
-      wrap.querySelectorAll("input[type=checkbox]").forEach(c => c.checked = false);
-      updateChart(rows);
-    };
-  }
-
-  if (rows.length === 0) {
-    status.textContent = "選定日期暫無資料（等工作流跑完或切換其他日期）。";
-    if (chart) chart.destroy();
-    return;
-  }
-  status.textContent = `共 ${rows.length} 筆資料。`;
-  updateChart(rows);
+  const dateISO = document.getElementById("datePicker").value || new Date().toISOString().slice(0,10);
+  const centerName = document.getElementById("centerSelect").value;
+  const areaMode = document.getElementById("areaMode").value;
+  render(centerName, dateISO, areaMode);
 }
 
-// 初始化：今天 + 游泳池
+// 初始化控件
 (function init(){
   const today = new Date().toISOString().slice(0,10);
   document.getElementById("datePicker").value = today;
-  document.getElementById("datePicker").addEventListener("change", loadAndRender);
-  document.getElementById("areaSelect").addEventListener("change", loadAndRender);
+  document.getElementById("datePicker").addEventListener("change", loadCSVAndRender);
+  document.getElementById("centerSelect").addEventListener("change", loadCSVAndRender);
+  document.getElementById("areaMode").addEventListener("change", loadCSVAndRender);
 
-  loadAndRender();
-  setInterval(loadAndRender, 30 * 1000); // 每 30 秒更新一次頁面資料
+  loadCSVAndRender();
+  setInterval(loadCSVAndRender, 30 * 1000);   // 每 30 秒刷新頁面數據
 })();
 </script>
 </body>
