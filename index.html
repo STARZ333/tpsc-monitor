@@ -5,15 +5,20 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>臺北市運動中心人流監測</title>
   <style>
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC",
-           "Microsoft JhengHei", Arial, sans-serif; margin: 24px; }
+    :root { --border:#e5e7eb; --muted:#6b7280; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC",
+           "PingFang TC", "Microsoft JhengHei", Arial, sans-serif; margin: 24px; }
     header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
     .controls { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
-    input[type="date"], select { padding:6px 8px; border-radius: 10px; border:1px solid #e5e7eb; }
-    .card { border:1px solid #e5e7eb; border-radius:16px; padding:16px; margin-top:16px; box-shadow:0 2px 6px rgba(0,0,0,0.04); }
-    .muted { color:#6b7280; font-size:0.9rem; }
-    .footer { margin-top: 16px; color:#6b7280; font-size:0.85rem; }
+    input[type="date"], select { padding:6px 10px; border-radius: 12px; border:1px solid var(--border); }
+    .card { border:1px solid var(--border); border-radius:16px; padding:16px; margin-top:16px;
+            box-shadow:0 2px 6px rgba(0,0,0,0.04); }
+    .muted { color:var(--muted); font-size:0.92rem; }
+    .footer { margin-top: 16px; color:var(--muted); font-size:0.85rem; }
+    h3 { margin: 6px 0 12px; }
+    #status { margin-top: 6px; }
   </style>
+  <!-- Chart.js + Luxon 时间轴适配 -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
@@ -23,9 +28,12 @@
   <div>
     <h1>臺北市運動中心人流監測</h1>
     <div class="muted">資料每 1 分鐘抓取追加保存；本頁每 <b>30 秒</b> 自動刷新。</div>
+    <div id="status" class="muted"></div>
   </div>
   <div class="controls">
-    <label>日期：<input type="date" id="datePicker"></label>
+    <label>日期：
+      <input type="date" id="datePicker">
+    </label>
     <label>運動中心：
       <select id="centerSelect"></select>
     </label>
@@ -49,74 +57,77 @@
 </div>
 
 <div class="footer">
-  資料來源：<a href="https://booking-tpsc.sporetrofit.com/Home/LocationPeopleNum" target="_blank">臺北市運動中心預約系統</a>
+  資料來源：<a href="https://booking-tpsc.sporetrofit.com/Home/LocationPeopleNum" target="_blank" rel="noopener">臺北市運動中心預約系統</a>
 </div>
 
 <script>
-const CSV_URL = "data/all_people.csv";   // 改讀新的 CSV
-let countChart, occChart, allRowsCache = [];
+const CSV_URL = "data/all_people.csv";   // ← 若你改了文件名，这里也要同步修改
+let allRows = [];
+let countChart, occChart;
+
+/** 兼容 6 位毫秒的 ISO 字符串（裁成 3 位），用 Luxon 解析为 Date */
+function tsToDate(iso) {
+  // 例如 2025-09-04T17:35:46.461928+08:00  →  2025-09-04T17:35:46.461+08:00
+  const fixed = iso.replace(/(\.\d{3})\d+(?=[+Z])/, '$1');
+  return luxon.DateTime.fromISO(fixed).toJSDate();
+}
 
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
   if (!lines.length) return [];
-  const header = lines.shift().split(",");
-  // timestamp,code,name,area,current,capacity,occupancy_pct
+  lines.shift(); // 去掉表头
+  // 字段：timestamp,code,name,area,current,capacity,occupancy_pct
   return lines.filter(Boolean).map(l => {
-    const [timestamp, code, name, area, current, capacity, occ] = l.split(",", 7);
-    return { timestamp, code, name, area, current:+current, capacity:+capacity, occupancy_pct:+occ };
+    const parts = l.split(",", 7);
+    return {
+      timestamp: parts[0],
+      code: parts[1],
+      name: parts[2],
+      area: parts[3],
+      current: +parts[4],
+      capacity: +parts[5],
+      occupancy_pct: +parts[6]
+    };
   });
 }
 
 function unique(arr) { return Array.from(new Set(arr)); }
 
+function dayRows(rows, dateISO) {
+  return rows.filter(r => r.timestamp.slice(0,10) === dateISO);
+}
+
+function populateCentersForDay(rows, keepCurrent=true) {
+  const sel = document.getElementById("centerSelect");
+  const before = sel.value;
+  const names = unique(rows.map(r => r.name)).sort((a,b)=>a.localeCompare(b, 'zh-Hant'));
+  sel.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join("");
+  if (keepCurrent && names.includes(before)) sel.value = before;
+}
+
 function makeDataset(label, points) {
   return { label, data: points, parsing:false, borderWidth:2, pointRadius:0, tension:0.2 };
 }
 
-function populateCenterSelect(rows) {
-  const sel = document.getElementById("centerSelect");
-  const names = unique(rows.map(r => r.name)).sort();
-  sel.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join("");
-}
+function buildSeries(rows, centerName, mode) {
+  const base = rows.filter(r => r.name === centerName);
+  const mkPoints = (label, key) =>
+    base.filter(r => r.area === label)
+        .sort((a,b) => a.timestamp.localeCompare(b.timestamp))
+        .map(r => ({ x: tsToDate(r.timestamp), y: (key === "current" ? r.current : r.occupancy_pct) }));
 
-function filterByDay(rows, dateISO) {
-  return rows.filter(r => r.timestamp.slice(0,10) === dateISO);
-}
-
-function buildSeries(rows, centerName, areaMode) {
-  const subset = rows.filter(r => r.name === centerName);
-  const mk = (label, key) => {
-    const pts = subset.filter(r => (areaMode==="both" ? true : r.area===label))
-                      .filter(r => r.area === label)
-                      .sort((a,b) => a.timestamp.localeCompare(b.timestamp))
-                      .map(r => ({x:new Date(r.timestamp), y: key==="current" ? r.current : r.occupancy_pct}));
-    return pts;
-  };
-  const series = [];
-  if (areaMode==="both" || areaMode==="游泳池") series.push({label:"游泳池", key:"游泳池"});
-  if (areaMode==="both" || areaMode==="健身房") series.push({label:"健身房", key:"健身房"});
+  const areas = (mode === "both") ? ["游泳池","健身房"] : [mode];
   return {
-    count: series.map(s => makeDataset(s.label, mk(s.label, "current"))),
-    occ:   series.map(s => makeDataset(s.label, mk(s.label, "occ"))),
+    count: areas.map(a => makeDataset(a, mkPoints(a, "current"))),
+    occ:   areas.map(a => makeDataset(a, mkPoints(a, "occ"))),
   };
 }
 
-function render(centerName, dateISO, areaMode) {
-  const dayRows = filterByDay(allRowsCache, dateISO);
-  if (!dayRows.length) {
-    if (countChart) countChart.destroy();
-    if (occChart) occChart.destroy();
-    return;
-  }
-  if (!centerName) {
-    populateCenterSelect(dayRows);
-    centerName = document.getElementById("centerSelect").value;
-  }
-  const series = buildSeries(dayRows, centerName, areaMode);
+function renderCharts(rows, centerName, mode) {
+  const series = buildSeries(rows, centerName, mode);
 
   if (countChart) countChart.destroy();
-  const ctx1 = document.getElementById("chartCount").getContext("2d");
-  countChart = new Chart(ctx1, {
+  countChart = new Chart(document.getElementById("chartCount").getContext("2d"), {
     type: "line",
     data: { datasets: series.count },
     options: {
@@ -130,8 +141,7 @@ function render(centerName, dateISO, areaMode) {
   });
 
   if (occChart) occChart.destroy();
-  const ctx2 = document.getElementById("chartOcc").getContext("2d");
-  occChart = new Chart(ctx2, {
+  occChart = new Chart(document.getElementById("chartOcc").getContext("2d"), {
     type: "line",
     data: { datasets: series.occ },
     options: {
@@ -145,27 +155,59 @@ function render(centerName, dateISO, areaMode) {
   });
 }
 
-async function loadCSVAndRender() {
-  const res = await fetch(CSV_URL + "?_=" + Date.now(), { cache:"no-store" });
-  const text = await res.text();
-  allRowsCache = parseCSV(text);
-
-  const dateISO = document.getElementById("datePicker").value || new Date().toISOString().slice(0,10);
-  const centerName = document.getElementById("centerSelect").value;
-  const areaMode = document.getElementById("areaMode").value;
-  render(centerName, dateISO, areaMode);
+function updateStatus(rows, dateISO, centerName) {
+  const status = document.getElementById("status");
+  if (!rows.length) {
+    status.textContent = `「${dateISO}」暫無資料，等工作流抓到第一筆後再看。`;
+    return;
+  }
+  const lastTs = rows[rows.length - 1].timestamp;
+  const count = rows.filter(r => r.name === centerName).length;
+  status.textContent = `此日共 ${rows.length} 筆；當前中心「${centerName}」有 ${count} 筆。最後一筆：${lastTs}`;
 }
 
-// 初始化控件
+async function loadAndRender({keepCenter=true} = {}) {
+  try {
+    const res = await fetch(CSV_URL + "?_=" + Date.now(), { cache:"no-store" });
+    const text = await res.text();
+    allRows = parseCSV(text);
+  } catch (e) {
+    console.error("讀取 CSV 失敗：", e);
+    return;
+  }
+
+  const dateISO = document.getElementById("datePicker").value || new Date().toISOString().slice(0,10);
+  const day = dayRows(allRows, dateISO);
+
+  if (!day.length) {
+    updateStatus(day, dateISO, "");
+    if (countChart) countChart.destroy();
+    if (occChart) occChart.destroy();
+    // 仍要刷新中心下拉（可能为空）
+    populateCentersForDay(day, false);
+    return;
+  }
+
+  // 先（或在日期切換時）重建中心選單
+  populateCentersForDay(day, keepCenter);
+  const center = document.getElementById("centerSelect").value;
+  const mode = document.getElementById("areaMode").value;
+
+  updateStatus(day, dateISO, center);
+  renderCharts(day, center, mode);
+}
+
+// 初始化
 (function init(){
   const today = new Date().toISOString().slice(0,10);
   document.getElementById("datePicker").value = today;
-  document.getElementById("datePicker").addEventListener("change", loadCSVAndRender);
-  document.getElementById("centerSelect").addEventListener("change", loadCSVAndRender);
-  document.getElementById("areaMode").addEventListener("change", loadCSVAndRender);
 
-  loadCSVAndRender();
-  setInterval(loadCSVAndRender, 30 * 1000);   // 每 30 秒刷新頁面數據
+  document.getElementById("datePicker").addEventListener("change", () => loadAndRender({keepCenter:false}));
+  document.getElementById("centerSelect").addEventListener("change", () => loadAndRender());
+  document.getElementById("areaMode").addEventListener("change", () => loadAndRender());
+
+  loadAndRender();
+  setInterval(loadAndRender, 30 * 1000);   // 每 30 秒更新頁面資料
 })();
 </script>
 </body>
