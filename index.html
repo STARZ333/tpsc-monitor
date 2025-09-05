@@ -59,7 +59,8 @@
 </div>
 
 <script>
-const CSV_URL = "data/all_people.csv";
+// 直接讀 main 分支最新 CSV（免等待 Pages 部署）
+const CSV_URL = "https://raw.githubusercontent.com/STARZ333/tpsc-monitor/main/data/all_people.csv";
 let allRows = [];
 let countChart, occChart;
 
