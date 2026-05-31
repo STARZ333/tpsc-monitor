@@ -1,5 +1,7 @@
 # TPSC Da'an Monitor (大安運動中心 即時人流監測)
 
+https://starz333.github.io/tpsc-monitor/
+
 這個專案會每 5 分鐘自動抓取「臺北市運動中心預約系統」的【使用人數統計】頁面，
 只記錄「大安運動中心」的**游泳池**與**健身房**人數／容留上限到 `data/da_an_people.csv`，
 並用 GitHub Pages 提供一個即時更新（每 1 分鐘自動刷新）的圖表頁面 `index.html`。
