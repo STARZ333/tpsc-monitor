@@ -11,22 +11,6 @@ https://starz333.github.io/tpsc-monitor/
 - 即時頁面：開啟 GitHub Pages（Source 設為 main branch / root），瀏覽 `https://<你的使用者名>.github.io/<此 repo 名>/`
 - 注意：若網站前端結構變動，解析規則可能需要微調（見 `scrape_da_an.py` 的 `_numbers_after()`）。
 
-## 使用方式
-
-1. 在 GitHub 建立一個新的 **Public** repo（例如 `tpsc-da-an-monitor`），把本專案所有檔案推上去。
-2. 到 **Settings → Pages**：
-   - Source: **Deploy from a branch**
-   - Branch: `main`，資料夾：`/ (root)`
-3. 到 **Actions** 確認 workflow 已啟用。第一次也可手動點 **Run workflow**。
-4. 等待幾分鐘後，打開 Pages 網站，會看到今天的折線圖，頁面每分鐘自動刷新一次。
-
-## 本地執行（可選）
-```bash
-pip install -r requirements.txt
-python -m playwright install --with-deps chromium
-python scrape_da_an.py --csv data/da_an_people.csv
-```
-
 ## 結構
 ```
 .
