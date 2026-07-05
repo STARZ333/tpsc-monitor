@@ -1,269 +1,627 @@
 <!doctype html>
 <html lang="zh-Hant">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>臺北市運動中心人流監測</title>
-  <style>
-    :root { --border:#e5e7eb; --muted:#6b7280; }
-    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC","PingFang TC","Microsoft JhengHei", Arial, sans-serif; margin: 24px; }
-    header { display:flex; flex-wrap:wrap; gap:12px; align-items:center; justify-content:space-between; }
-    .controls { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
-    input[type="date"], select { padding:6px 10px; border-radius: 12px; border:1px solid var(--border); }
-    .card { border:1px solid var(--border); border-radius:16px; padding:16px; margin-top:16px; box-shadow:0 2px 6px rgba(0,0,0,0.04); }
-    .muted { color:var(--muted); font-size:0.92rem; }
-    .footer { margin-top: 16px; color:var(--muted); font-size:0.85rem; }
-    h3 { margin: 6px 0 12px; }
-    #status { margin-top: 6px; }
-  </style>
-  <!-- Chart.js + Luxon -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="臺北市 12 座運動中心游泳池與健身房即時人數、佔用率與歷史走勢">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f6f7f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f1216" media="(prefers-color-scheme: dark)">
+<title>臺北市運動中心人流監測</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏊</text></svg>">
+
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
+        integrity="sha384-9nhczxUqK87bcKHh20fSQcTGD4qq5GhayNYSYWqwBkINBhOfQLg/P5HG5lF1urn4" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/luxon@3.5.0/build/global/luxon.min.js"
+        integrity="sha384-CU0J6nu6GO5gWB5IqOOhPQsG0LKyjpotF5Gw502R+0zbkzKHjDWc6FKSZsNTJfLX" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"
+        integrity="sha384-7cWzHabR6ZyfMWzZgVssYaOQRTccHUWZ0F09AanlF3RAJ/JNyFnIma2JTYIVKEUP" crossorigin="anonymous"></script>
+
+<style>
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --border: #e4e7ec;
+  --text: #1a222c;
+  --muted: #67717e;
+  --accent: #2563eb;
+  --accent-soft: #2563eb1f;
+  --pool: #2f7ce8;
+  --gym: #e8900c;
+  --ok: #12a06e;
+  --warn: #dd8b0b;
+  --bad: #e0464c;
+  --closed: #98a1ab;
+  --track: #edf0f3;
+  --shadow: 0 1px 2px rgba(16,24,40,.05), 0 2px 8px rgba(16,24,40,.05);
+  --radius: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216;
+    --surface: #171c22;
+    --border: #2a313a;
+    --text: #e7eaee;
+    --muted: #98a1ab;
+    --accent: #5a93f5;
+    --accent-soft: #5a93f52b;
+    --pool: #5a9cf8;
+    --gym: #f0a83a;
+    --ok: #2fbd8b;
+    --warn: #eaa53c;
+    --bad: #ef6b6f;
+    --closed: #6d7680;
+    --track: #232a32;
+    --shadow: 0 1px 2px rgba(0,0,0,.35);
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto,
+    "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  line-height: 1.5;
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 20px 16px 40px; }
+
+header h1 { margin: 4px 0 2px; font-size: 1.45rem; letter-spacing: .01em; }
+.subtitle { color: var(--muted); font-size: .88rem; margin: 0; }
+.status { display: inline-flex; align-items: center; gap: 7px; margin-top: 10px;
+  font-size: .88rem; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 999px; padding: 5px 13px; box-shadow: var(--shadow); }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+.status.stale .dot { background: var(--warn); }
+.status.error .dot { background: var(--bad); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 18px 0 14px; }
+.controls .spacer { flex: 1; }
+.datenav { display: flex; align-items: center; gap: 6px; }
+button, select, input[type="date"] {
+  font: inherit; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 7px 12px; box-shadow: var(--shadow);
+}
+input[type="date"] { padding: 6px 10px; }
+button { cursor: pointer; }
+button:hover, select:hover { border-color: var(--accent); }
+button:disabled { opacity: .4; cursor: default; }
+button:disabled:hover { border-color: var(--border); }
+.iconbtn { padding: 7px 10px; line-height: 1; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); }
+.seg button { border: 0; border-radius: 0; box-shadow: none; padding: 7px 14px; color: var(--muted); }
+.seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+.card { background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; }
+.card h2 { margin: 0 0 4px; font-size: 1.02rem; }
+.card .sub { color: var(--muted); font-size: .82rem; margin: 0 0 10px; }
+
+.now-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px; margin-bottom: 14px; }
+.stat { display: flex; flex-direction: column; gap: 6px; }
+.stat .label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; }
+.stat .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.stat .big { font-size: 2rem; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.stat .big .cap { font-size: 1.05rem; font-weight: 500; color: var(--muted); }
+.stat .pct { font-size: .88rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bar { height: 8px; border-radius: 999px; background: var(--track); overflow: hidden; }
+.bar > i { display: block; height: 100%; border-radius: 999px; transition: width .4s ease; }
+.lv-ok { background: var(--ok); } .lv-warn { background: var(--warn); }
+.lv-bad { background: var(--bad); } .lv-closed { background: var(--closed); }
+.t-ok { color: var(--ok); } .t-warn { color: var(--warn); }
+.t-bad { color: var(--bad); } .t-closed { color: var(--closed); }
+
+.chart-card { margin-bottom: 14px; }
+.chart-box { position: relative; height: 300px; }
+.chart-empty { position: absolute; inset: 0; display: none; align-items: center;
+  justify-content: center; color: var(--muted); font-size: .95rem; }
+.chart-box.empty .chart-empty { display: flex; }
+.chart-box.empty canvas { visibility: hidden; }
+
+.ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 10px; }
+.ov { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px;
+  background: var(--surface); cursor: pointer; text-align: left; box-shadow: none; }
+.ov:hover { border-color: var(--accent); }
+.ov.on { border-color: var(--accent); background: var(--accent-soft); }
+.ov .name { font-weight: 600; font-size: .92rem; margin-bottom: 6px; }
+.ov .row { display: flex; align-items: center; gap: 7px; margin-top: 5px;
+  font-size: .78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ov .row .tag { flex: none; width: 1.2em; }
+.ov .row .bar { flex: 1; height: 6px; }
+.ov .row .val { flex: none; min-width: 3.2em; text-align: right; }
+
+footer { margin-top: 22px; color: var(--muted); font-size: .82rem; }
+footer a { color: inherit; }
+
+@media (max-width: 640px) {
+  .wrap { padding: 14px 12px 32px; }
+  header h1 { font-size: 1.22rem; }
+  .chart-box { height: 240px; }
+  .stat .big { font-size: 1.7rem; }
+}
+</style>
 </head>
 <body>
-<header>
-  <div>
-    <h1>臺北市運動中心人流監測</h1>
-    <div class="muted">資料每 1 分鐘抓取追加保存；本頁每 <b>30 秒</b> 自動刷新。</div>
-    <div id="status" class="muted"></div>
-  </div>
+<div class="wrap">
+  <header>
+    <h1>🏊 臺北市運動中心人流監測</h1>
+    <p class="subtitle">游泳池與健身房即時人數・佔用率・歷史走勢</p>
+    <div id="status" class="status"><span class="dot"></span><span id="statusText">載入中…</span></div>
+  </header>
+
   <div class="controls">
-    <label>日期：
-      <input type="date" id="datePicker">
-    </label>
-    <label>運動中心：
-      <select id="centerSelect"></select>
-    </label>
-    <label>顯示：
-      <select id="areaMode">
-        <option value="both">游泳池 + 健身房</option>
-        <option value="游泳池">只看 游泳池</option>
-        <option value="健身房">只看 健身房</option>
-      </select>
-    </label>
+    <div class="datenav">
+      <button id="prevDay" class="iconbtn" aria-label="前一天">◀</button>
+      <input type="date" id="datePicker" aria-label="日期">
+      <button id="nextDay" class="iconbtn" aria-label="後一天">▶</button>
+      <button id="todayBtn">今天</button>
+    </div>
+    <select id="centerSelect" aria-label="運動中心"></select>
+    <div class="seg" id="areaSeg" role="group" aria-label="顯示區域">
+      <button data-mode="both" class="on">全部</button>
+      <button data-mode="pool">游泳池</button>
+      <button data-mode="gym">健身房</button>
+    </div>
   </div>
-</header>
 
-<div class="card">
-  <h3>人數（current） vs 時間</h3>
-  <canvas id="chartCount" height="110"></canvas>
-</div>
-<div class="card">
-  <h3>占用率（%） vs 時間</h3>
-  <canvas id="chartOcc" height="110"></canvas>
+  <section id="nowCards" class="now-grid" hidden>
+    <div class="card stat" id="statPool">
+      <div class="label"><span class="swatch" style="background:var(--pool)"></span>游泳池・目前人數</div>
+      <div class="big">—</div>
+      <div class="bar"><i></i></div>
+      <div class="pct">—</div>
+    </div>
+    <div class="card stat" id="statGym">
+      <div class="label"><span class="swatch" style="background:var(--gym)"></span>健身房・目前人數</div>
+      <div class="big">—</div>
+      <div class="bar"><i></i></div>
+      <div class="pct">—</div>
+    </div>
+  </section>
+
+  <section class="card chart-card">
+    <h2>人數走勢</h2>
+    <p class="sub" id="countSub"></p>
+    <div class="chart-box" id="countBox">
+      <canvas id="chartCount"></canvas>
+      <div class="chart-empty">此日無資料</div>
+    </div>
+  </section>
+
+  <section class="card chart-card">
+    <h2>佔用率走勢（%）</h2>
+    <p class="sub" id="occSub"></p>
+    <div class="chart-box" id="occBox">
+      <canvas id="chartOcc"></canvas>
+      <div class="chart-empty">此日無資料</div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>全市即時總覽</h2>
+    <p class="sub">最新一次抓取的各中心佔用率（泳＝游泳池、健＝健身房），點擊切換中心</p>
+    <div class="ov-grid" id="overview"></div>
+  </section>
+
+  <footer>
+    資料來源：<a href="https://booking-tpsc.sporetrofit.com/Home/LocationPeopleNum" target="_blank" rel="noopener">臺北市運動中心預約系統</a>・
+    由 <a href="https://github.com/STARZ333/tpsc-monitor" target="_blank" rel="noopener">GitHub Actions</a> 排程抓取（每 5 分鐘排程，實際間隔視 GitHub 負載而定）・
+    本頁每分鐘自動檢查更新
+  </footer>
 </div>
 
-<div class="footer">
-  資料來源：<a href="https://booking-tpsc.sporetrofit.com/Home/LocationPeopleNum" target="_blank" rel="noopener">臺北市運動中心預約系統</a>
-</div>
+<noscript><p style="text-align:center">此頁面需要啟用 JavaScript。</p></noscript>
 
 <script>
-// 直接讀 main 分支最新 CSV（免等待 Pages 部署）
-const CSV_URL = "https://raw.githubusercontent.com/STARZ333/tpsc-monitor/main/data/all_people.csv";
-let allRows = [];
+'use strict';
+window.addEventListener('DOMContentLoaded', () => {
+const { DateTime } = luxon;
+const TZ = 'Asia/Taipei';
+
+const IS_LOCAL = ['localhost', '127.0.0.1', '[::1]', ''].includes(location.hostname)
+  || location.protocol === 'file:';
+const DATA_BASE = IS_LOCAL
+  ? './data'
+  : 'https://raw.githubusercontent.com/STARZ333/tpsc-monitor/main/data';
+
+const AREA_LABEL = { pool: '游泳池', gym: '健身房' };
+const $ = id => document.getElementById(id);
+
+const state = {
+  date: DateTime.now().setZone(TZ).toISODate(),
+  center: localStorage.getItem('tpsc.center') || 'DASC',
+  mode: localStorage.getItem('tpsc.mode') || 'both',
+  dates: [],            // index.json：有資料的日期（升冪）
+  latest: null,         // latest.json
+  rows: [],             // 目前所選日期的資料列
+  dayLoaded: '',        // rows 對應的日期
+};
+
+/* ---------- 資料載入 ---------- */
+
+async function fetchOk(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+  return res;
+}
+
+async function loadIndex() {
+  try {
+    const idx = await (await fetchOk(`${DATA_BASE}/index.json`)).json();
+    state.dates = idx.dates || [];
+    const picker = $('datePicker');
+    if (state.dates.length) {
+      picker.min = state.dates[0];
+      picker.max = state.dates[state.dates.length - 1] > state.date
+        ? state.dates[state.dates.length - 1] : state.date;
+    }
+  } catch (e) { /* 沒有 index 時仍可運作 */ }
+}
+
+async function loadLatest() {
+  try {
+    const latest = await (await fetchOk(`${DATA_BASE}/latest.json`)).json();
+    const changed = !state.latest || latest.scraped_at !== state.latest.scraped_at;
+    state.latest = latest;
+    renderStatus();
+    renderNowCards();
+    renderOverview();
+    populateCenters();
+    return changed;
+  } catch (e) {
+    setStatus('error', '無法載入最新資料');
+    return false;
+  }
+}
+
+function parseCsv(text) {
+  const rows = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (!line || line.startsWith('timestamp,')) continue;
+    const p = line.split(',');
+    if (p.length < 7) continue;
+    const ts = DateTime.fromISO(p[0]);
+    if (!ts.isValid) continue;
+    rows.push({
+      ms: ts.toMillis(), code: p[1], name: p[2], area: p[3],
+      current: +p[4] || 0, capacity: +p[5] || 0, pct: +p[6] || 0,
+    });
+  }
+  rows.sort((a, b) => a.ms - b.ms);
+  return rows;
+}
+
+async function loadDay(date) {
+  let rows = [];
+  try {
+    const text = await (await fetchOk(`${DATA_BASE}/daily/${date}.csv`)).text();
+    rows = parseCsv(text);
+  } catch (e) {
+    /* 404 → 此日無資料 */
+  }
+  if (state.date !== date) return;   // 使用者已切到別的日期，丟棄過期回應
+  state.rows = rows;
+  state.dayLoaded = date;
+  populateCenters();
+  renderCharts();
+}
+
+/* ---------- 呈現：狀態列 ---------- */
+
+function setStatus(kind, text) {
+  const el = $('status');
+  el.classList.toggle('stale', kind === 'stale');
+  el.classList.toggle('error', kind === 'error');
+  $('statusText').textContent = text;
+}
+
+function renderStatus() {
+  if (!state.latest) return;
+  const ts = DateTime.fromISO(state.latest.scraped_at).setZone(TZ);
+  const ageMin = -ts.diffNow('minutes').minutes;
+  const rel = ts.toRelative({ locale: 'zh-TW' }) || '';
+  const stale = ageMin > 180;
+  setStatus(stale ? 'stale' : 'ok',
+    `最後更新 ${ts.toFormat('MM/dd HH:mm')}（${rel}）${stale ? '・資料延遲中' : ''}`);
+}
+
+/* ---------- 呈現：即時狀態卡與總覽 ---------- */
+
+function level(pct, capacity) {
+  if (!capacity) return 'closed';
+  return pct < 50 ? 'ok' : pct < 80 ? 'warn' : 'bad';
+}
+
+function findCenter(code) {
+  return state.latest?.centers.find(c => c.code === code) || null;
+}
+
+function renderStat(el, entry) {
+  const big = el.querySelector('.big');
+  const bar = el.querySelector('.bar > i');
+  const pctEl = el.querySelector('.pct');
+  if (!entry || !entry.capacity) {
+    big.textContent = '—';
+    bar.className = 'lv-closed'; bar.style.width = '100%';
+    pctEl.textContent = '未開放'; pctEl.className = 'pct t-closed';
+    return;
+  }
+  const pct = entry.current / entry.capacity * 100;
+  const lv = level(pct, entry.capacity);
+  big.innerHTML = `${entry.current} <span class="cap">/ ${entry.capacity} 人</span>`;
+  bar.className = `lv-${lv}`;
+  bar.style.width = Math.min(100, pct) + '%';
+  pctEl.textContent = `佔用率 ${pct.toFixed(1)}%`;
+  pctEl.className = `pct t-${lv}`;
+}
+
+function renderNowCards() {
+  const c = findCenter(state.center);
+  $('nowCards').hidden = !c;
+  if (!c) return;
+  renderStat($('statPool'), c.pool);
+  renderStat($('statGym'), c.gym);
+}
+
+function ovRow(tag, entry) {
+  if (!entry || !entry.capacity) {
+    return `<div class="row"><span class="tag">${tag}</span>
+      <div class="bar"><i class="lv-closed" style="width:100%"></i></div>
+      <span class="val t-closed">未開放</span></div>`;
+  }
+  const pct = entry.current / entry.capacity * 100;
+  const lv = level(pct, entry.capacity);
+  return `<div class="row"><span class="tag">${tag}</span>
+    <div class="bar"><i class="lv-${lv}" style="width:${Math.min(100, pct)}%"></i></div>
+    <span class="val t-${lv}">${Math.round(pct)}%</span></div>`;
+}
+
+function renderOverview() {
+  if (!state.latest) return;
+  $('overview').innerHTML = state.latest.centers.map(c => `
+    <button class="ov ${c.code === state.center ? 'on' : ''}" data-code="${c.code}" title="${c.name}">
+      <div class="name">${c.name.replace('運動中心', '')}</div>
+      ${ovRow('泳', c.pool)}${ovRow('健', c.gym)}
+    </button>`).join('');
+}
+
+/* ---------- 呈現：中心選單 ---------- */
+
+function populateCenters() {
+  const sel = $('centerSelect');
+  const byCode = new Map();
+  for (const c of state.latest?.centers || []) byCode.set(c.code, c.name);
+  for (const r of state.rows) if (!byCode.has(r.code)) byCode.set(r.code, r.name);
+  if (!byCode.size) return;
+  const codes = [...byCode.keys()].sort();
+  const html = codes.map(c => `<option value="${c}">${byCode.get(c)}</option>`).join('');
+  if (sel.innerHTML !== html) sel.innerHTML = html;
+  if (!byCode.has(state.center)) state.center = codes[0];
+  sel.value = state.center;
+}
+
+/* ---------- 圖表 ---------- */
+
 let countChart, occChart;
 
-/** 嚴格時間解析：成功返回 Date，失敗返回 null（不兜底到 now） */
-function tsToDateStrict(raw) {
-  if (!raw) return null;
-  let iso = String(raw).trim();
-  // 把 .123456+08:00 → .123+08:00
-  iso = iso.replace(/(\.\d{3})\d+(?=[+Z])/, '$1');
-  // 1) Luxon
-  const dt = luxon.DateTime.fromISO(iso);
-  if (dt.isValid) return dt.toJSDate();
-  // 2) 正則手工解析
-  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?([+-]\d{2}):?(\d{2})?$/);
-  if (m) {
-    const [_, Y, Mo, D, H, Mi, S, frac="0", offH="+00", offM="00"] = m;
-    const ms = Math.floor(parseInt(frac.padEnd(3, '0').slice(0,3), 10));
-    const sign = offH.startsWith('-') ? -1 : 1;
-    const oh = Math.abs(parseInt(offH,10)) || 0;
-    const om = parseInt(offM||"0",10) || 0;
-    const offsetMin = sign * (oh*60 + om);
-    const utcMs = Date.UTC(+Y, +Mo-1, +D, +H, +Mi, +S, ms) - offsetMin*60*1000;
-    return new Date(utcMs);
-  }
-  // 3) 兜底：原生 Date.parse
-  const t = Date.parse(iso);
-  return isNaN(t) ? null : new Date(t);
+function chartColors() {
+  const css = getComputedStyle(document.documentElement);
+  const v = name => css.getPropertyValue(name).trim();
+  return { pool: v('--pool'), gym: v('--gym'), border: v('--border'),
+           text: v('--text'), muted: v('--muted') };
 }
 
-function parseCSV(text) {
-  const lines = text.trim().split(/\r?\n/);
-  if (!lines.length) return [];
-  lines.shift(); // header
-  // timestamp,code,name,area,current,capacity,occupancy_pct
-  return lines.filter(Boolean).map(l => {
-    const p = l.split(",", 7);
+function makeChart(canvasId, yTitle, yMax) {
+  const c = chartColors();
+  return new Chart($(canvasId).getContext('2d'), {
+    type: 'line',
+    data: { datasets: [] },
+    options: {
+      animation: false,
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      scales: {
+        x: {
+          type: 'time',
+          adapters: { date: { zone: TZ } },
+          time: { unit: 'hour', displayFormats: { hour: 'HH:mm' } },
+          ticks: { autoSkip: true, maxTicksLimit: 13, color: c.muted },
+          grid: { color: c.border },
+        },
+        y: {
+          beginAtZero: true,
+          suggestedMax: yMax,
+          title: { display: true, text: yTitle, color: c.muted },
+          ticks: { color: c.muted },
+          grid: { color: c.border },
+        },
+      },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: c.text, usePointStyle: true, boxHeight: 7 } },
+        tooltip: {
+          callbacks: {
+            title: items => items.length
+              ? DateTime.fromMillis(items[0].parsed.x, { zone: TZ }).toFormat('HH:mm') : '',
+            label: item => {
+              const p = item.raw;
+              return `${item.dataset.label}：${p.cur} 人 / ${p.cap}（${p.pct.toFixed(1)}%）`;
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+function hexAlpha(hex, alpha) {
+  return hex + Math.round(alpha * 255).toString(16).padStart(2, '0');
+}
+
+function setDatasets(chart, next) {
+  const prev = new Map(chart.data.datasets.map(d => [d.label, d]));
+  chart.data.datasets = next.map(nd => {
+    const old = prev.get(nd.label);
+    if (old) { Object.assign(old, nd); return old; }
+    return nd;
+  });
+}
+
+function renderCharts() {
+  if (!countChart) return;
+  const c = chartColors();
+  const areas = state.mode === 'both' ? ['pool', 'gym'] : [state.mode];
+  const base = state.rows.filter(r => r.code === state.center);
+
+  const dataset = (area, valueOf) => {
+    const color = c[area];
     return {
-      timestamp: (p[0]||"").trim(),
-      code: (p[1]||"").trim(),
-      name: (p[2]||"").trim(),
-      area: (p[3]||"").trim(),
-      current: +(p[4]||0),
-      capacity: +(p[5]||0),
-      occupancy_pct: +(p[6]||0)
+      label: AREA_LABEL[area],
+      data: base.filter(r => r.area === AREA_LABEL[area])
+        .map(r => ({ x: r.ms, y: valueOf(r), cur: r.current, cap: r.capacity, pct: r.pct })),
+      borderColor: color,
+      backgroundColor: hexAlpha(color, 0.10),
+      pointBackgroundColor: color,
+      fill: 'origin',
+      borderWidth: 2,
+      pointRadius: 2.5,
+      hitRadius: 8,
+      tension: 0.3,
+      spanGaps: true,
     };
-  });
-}
-
-const uniq = a => Array.from(new Set(a));
-
-function rowsOfDay(rows, dateISO) {
-  return rows.filter(r => r.timestamp.slice(0,10) === dateISO);
-}
-
-function centersOfDay(rows) {
-  return uniq(rows.map(r => r.name)).sort((a,b)=>a.localeCompare(b, 'zh-Hant'));
-}
-
-function populateCenters(sel, names, keepValue=true) {
-  const prev = sel.value;
-  sel.innerHTML = names.map(n => `<option value="${n}">${n}</option>`).join("");
-  if (keepValue && names.includes(prev)) sel.value = prev;
-}
-
-function makeDataset(label, points) {
-  return {
-    label,
-    data: points,
-    parsing: { xAxisKey:'x', yAxisKey:'y' },  // ← 明确告诉 Chart 字段名
-    borderWidth:2,
-    pointRadius:3,
-    hitRadius:6,
-    tension:0.2,
-    spanGaps:true,
-    showLine:true
   };
-}
 
-function seriesFor(rows, centerName, mode) {
-  const base = rows.filter(r => r.name === centerName);
-  // 先解析時間，丟棄無效點
-  const mapPoints = (keyArea, keyY) => {
-    const pts = [];
-    for (const r of base) {
-      if (r.area !== keyArea) continue;
-      const d = tsToDateStrict(r.timestamp);
-      if (!d) continue;
-      pts.push({ x: d, y: keyY === "current" ? r.current : r.occupancy_pct });
-    }
-    pts.sort((a,b) => a.x - b.x);
-    return pts;
-  };
-  const areas = (mode === "both") ? ["游泳池","健身房"] : [mode];
-  return {
-    count: areas.map(a => makeDataset(a, mapPoints(a, "current"))),
-    occ:   areas.map(a => makeDataset(a, mapPoints(a, "occ")))
-  };
-}
+  const dayStart = DateTime.fromISO(state.date, { zone: TZ }).startOf('day');
+  const xMin = dayStart.toMillis();
+  const xMax = dayStart.plus({ days: 1 }).toMillis();
+  let total = 0;
 
-function firstCenterWithData(rows, candidates) {
-  for (const n of candidates) if (rows.some(r => r.name === n)) return n;
-  return candidates[0] || "";
-}
-
-function renderCharts(rows, centerName, mode) {
-  const s = seriesFor(rows, centerName, mode);
-
-  // 调试：看看每条线的点数
-  console.log("count datasets:", s.count.map(d => ({label:d.label, n:d.data.length})));
-  console.log("occ   datasets:", s.occ  .map(d => ({label:d.label, n:d.data.length})));
-
-  if (countChart) countChart.destroy();
-  countChart = new Chart(document.getElementById("chartCount").getContext("2d"), {
-    type: "line",
-    data: { datasets: s.count },
-    options: {
-      animation:false,
-      spanGaps:true,
-      scales: {
-        x: { type:'time', time:{ unit:'minute' }, ticks:{ autoSkip:true, maxTicksLimit:12 } },
-        y: { beginAtZero:true, title:{ display:true, text:"人數" } }
-      },
-      plugins: { legend:{ position:'bottom' } }
-    }
-  });
-
-  if (occChart) occChart.destroy();
-  occChart = new Chart(document.getElementById("chartOcc").getContext("2d"), {
-    type: "line",
-    data: { datasets: s.occ },
-    options: {
-      animation:false,
-      spanGaps:true,
-      scales: {
-        x: { type:'time', time:{ unit:'minute' }, ticks:{ autoSkip:true, maxTicksLimit:12 } },
-        y: { beginAtZero:true, suggestedMax:100, title:{ display:true, text:"占用率 (%)" } }
-      },
-      plugins: { legend:{ position:'bottom' } }
-    }
-  });
-}
-
-function updateStatus(allDayRows, centerName) {
-  const el = document.getElementById("status");
-  if (!allDayRows.length) { el.textContent = "當日暫無資料。"; return; }
-  const last = allDayRows[allDayRows.length - 1].timestamp;
-  const cRows = allDayRows.filter(r => r.name === centerName);
-  el.textContent = `此日共 ${allDayRows.length} 筆；中心「${centerName}」有 ${cRows.length} 筆。最後一筆：${last}`;
-}
-
-async function loadAndRender({rebuildCenters=false} = {}) {
-  // 讀 CSV
-  let text = "";
-  try {
-    const res = await fetch(CSV_URL + "?_=" + Date.now(), { cache:"no-store" });
-    text = await res.text();
-  } catch (e) {
-    console.error("讀取 CSV 失敗：", e);
-    return;
-  }
-  allRows = parseCSV(text);
-
-  const dateISO = document.getElementById("datePicker").value || new Date().toISOString().slice(0,10);
-  const day = rowsOfDay(allRows, dateISO);
-
-  const sel = document.getElementById("centerSelect");
-  if (rebuildCenters || !sel.options.length) {
-    const names = centersOfDay(day);
-    populateCenters(sel, names, false);
+  for (const [chart, valueOf] of [
+    [countChart, r => r.current],
+    [occChart, r => r.pct],
+  ]) {
+    const ds = areas.map(a => dataset(a, valueOf));
+    total = ds.reduce((n, d) => n + d.data.length, 0);
+    setDatasets(chart, ds);
+    chart.options.scales.x.min = xMin;
+    chart.options.scales.x.max = xMax;
+    chart.update('none');
   }
 
-  // 若選中的中心在這一天沒有任何資料，則自動切換到第一個有資料的中心
-  let center = sel.value;
-  if (!day.some(r => r.name === center)) {
-    const names = centersOfDay(day);
-    center = firstCenterWithData(day, names);
-    if (center) sel.value = center;
+  const centerName = findCenter(state.center)?.name
+    || base[0]?.name || state.center;
+  const subText = `${state.date}・${centerName}`;
+  $('countSub').textContent = subText;
+  $('occSub').textContent = subText;
+  const emptyText = state.rows.length ? '此中心於此日無資料' : '此日無資料';
+  for (const boxId of ['countBox', 'occBox']) {
+    const box = $(boxId);
+    box.classList.toggle('empty', total === 0);
+    box.querySelector('.chart-empty').textContent = emptyText;
   }
-
-  updateStatus(day, center);
-
-  if (!day.length || !center) {
-    if (countChart) countChart.destroy();
-    if (occChart) occChart.destroy();
-    return;
-  }
-
-  const mode = document.getElementById("areaMode").value;
-  renderCharts(day, center, mode);
 }
 
-// 初始化
-(function init(){
-  const today = new Date().toISOString().slice(0,10);
-  document.getElementById("datePicker").value = today;
+function applyChartTheme() {
+  const c = chartColors();
+  for (const chart of [countChart, occChart]) {
+    if (!chart) continue;
+    const s = chart.options.scales;
+    s.x.ticks.color = c.muted; s.x.grid.color = c.border;
+    s.y.ticks.color = c.muted; s.y.grid.color = c.border;
+    s.y.title.color = c.muted;
+    chart.options.plugins.legend.labels.color = c.text;
+    chart.update('none');
+  }
+  renderCharts();  // 線色也跟著主題換
+}
 
-  document.getElementById("datePicker").addEventListener("change", () => loadAndRender({rebuildCenters:true}));
-  document.getElementById("centerSelect").addEventListener("change", () => loadAndRender());
-  document.getElementById("areaMode").addEventListener("change", () => loadAndRender());
+/* ---------- 日期導覽 ---------- */
 
-  loadAndRender({rebuildCenters:true});
-  setInterval(() => loadAndRender(), 30 * 1000);   // 每 30 秒刷新
+function gotoDate(date) {
+  state.date = date;
+  $('datePicker').value = date;
+  updateNavButtons();
+  loadDay(date);
+}
+
+function updateNavButtons() {
+  const { dates } = state;
+  $('prevDay').disabled = !dates.some(d => d < state.date);
+  $('nextDay').disabled = !dates.some(d => d > state.date);
+}
+
+function stepDay(dir) {
+  const { dates } = state;
+  const next = dir < 0
+    ? [...dates].reverse().find(d => d < state.date)
+    : dates.find(d => d > state.date);
+  if (next) gotoDate(next);
+}
+
+/* ---------- 事件與初始化 ---------- */
+
+function selectCenter(code) {
+  state.center = code;
+  localStorage.setItem('tpsc.center', code);
+  $('centerSelect').value = code;
+  renderNowCards();
+  renderOverview();
+  renderCharts();
+}
+
+$('centerSelect').addEventListener('change', e => selectCenter(e.target.value));
+$('overview').addEventListener('click', e => {
+  const btn = e.target.closest('.ov');
+  if (btn) selectCenter(btn.dataset.code);
+});
+$('areaSeg').addEventListener('click', e => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+  state.mode = btn.dataset.mode;
+  localStorage.setItem('tpsc.mode', state.mode);
+  for (const b of $('areaSeg').children) b.classList.toggle('on', b === btn);
+  renderCharts();
+});
+$('datePicker').addEventListener('change', e => {
+  if (e.target.value) gotoDate(e.target.value);
+});
+$('prevDay').addEventListener('click', () => stepDay(-1));
+$('nextDay').addEventListener('click', () => stepDay(1));
+$('todayBtn').addEventListener('click', () => gotoDate(DateTime.now().setZone(TZ).toISODate()));
+
+async function refresh() {
+  const changed = await loadLatest();
+  const today = DateTime.now().setZone(TZ).toISODate();
+  if (changed && state.date === state.dayLoaded && state.date === today) {
+    await loadDay(state.date);   // 只有看今天且真的有新資料才重抓當日檔
+  }
+  updateNavButtons();
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refresh();
+});
+
+(async function init() {
+  for (const b of $('areaSeg').children) b.classList.toggle('on', b.dataset.mode === state.mode);
+  $('datePicker').value = state.date;
+  countChart = makeChart('chartCount', '人數');
+  occChart = makeChart('chartOcc', '佔用率 (%)', 100);
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyChartTheme);
+
+  await loadIndex();
+  await loadLatest();
+  await loadDay(state.date);
+  updateNavButtons();
+  setInterval(refresh, 60 * 1000);
 })();
+});
 </script>
 </body>
 </html>

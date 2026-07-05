@@ -1,0 +1,46 @@
+name: deploy-pages
+
+# 只有頁面本身變動才需要重新部署；資料更新由前端直接讀
+# raw.githubusercontent.com，不經過 Pages。
+#
+# 注意：需在 Settings → Pages → Build and deployment → Source
+# 選擇「GitHub Actions」，內建的逐提交 Jekyll 建置才會停止。
+on:
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - "data/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Stage site
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
