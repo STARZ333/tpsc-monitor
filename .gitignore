@@ -1,0 +1,9 @@
+# 抓取失敗時的回應轉儲（由 CI 上傳為工件，不進版控）
+debug/
+
+__pycache__/
+*.pyc
+.DS_Store
+
+# 舊版爬蟲的頁面快照
+data/last_page.html

@@ -1,20 +1,21 @@
-name: scrape-da-an
+name: scrape
 
 on:
   schedule:
-    - cron: "*/5 * * * *"   # 每 5 分鐘
+    - cron: "2-57/5 * * * *"   # 每 5 分鐘（錯開整點，避開 GitHub 排程尖峰）
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: scrape-da-an
-  cancel-in-progress: true
+  group: scrape
+  cancel-in-progress: false   # 讓進行中的抓取完成提交，避免樣本被砍掉
 
 jobs:
   run:
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,36 +23,37 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
+          cache: pip
 
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          python -m playwright install --with-deps chromium
+        run: pip install -r requirements.txt
+
+      # 一次性自癒：若舊的累積檔仍存在（例如剛合併完優化分支），
+      # 把其中缺漏的列補進 data/daily/ 後刪除它；平時為 no-op。
+      - name: Backfill legacy CSV (no-op if absent)
+        run: python scripts/migrate_split_csv.py --delete-source
 
       - name: Run scraper
-        run: |
-          python scrape_da_an.py --csv data/all_people.csv
-          
-      - name: Upload debug snapshot (if exists)
+        run: python scrape.py
+
+      - name: Upload debug dump (only on fetch failure)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: debug-html
-          path: |
-            data/last_page.html
-            data/last_page.png
+          name: debug-response
+          path: debug/
           if-no-files-found: ignore
+          retention-days: 3
 
       - name: Commit & push if changed
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ -n "$(git status --porcelain)" ]; then
-            git add data/all_people.csv
-            git commit -m "Update data: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-            git push
+          git add -A data/
+          if git diff --cached --quiet; then
+            echo "No data changes"
           else
-            echo "No changes"
+            git commit -m "Update data: $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            git push || (git pull --rebase && git push)
           fi
