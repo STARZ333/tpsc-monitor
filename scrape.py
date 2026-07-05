@@ -25,7 +25,7 @@ import json
 import sys
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -164,6 +164,72 @@ def write_index_json() -> None:
     write_json(DATA_DIR / "index.json", {"dates": dates})
 
 
+# 冷門時段統計：僅計入營業時段（06:00–22:00 → 小時 6..21）
+STATS_WINDOW_DAYS = 30
+STATS_HOUR_MIN, STATS_HOUR_MAX = 6, 21
+AREA_KEY = {"游泳池": "pool", "健身房": "gym"}
+
+
+def write_stats_json(window_days: int = STATS_WINDOW_DAYS) -> None:
+    """彙總最近 window_days 天各中心/區域在營業時段的
+    （平日/週末 × 小時）平均佔用率，寫入 data/stats.json 供前端熱力圖使用。
+
+    每格為 [樣本數, 平均佔用率%, 期間最大人數]；最大人數恆為 0 代表該時段未開放。
+    """
+    today = datetime.now(tz=TAIPEI_TZ).date()
+    start = today - timedelta(days=window_days - 1)
+    n_hours = STATS_HOUR_MAX - STATS_HOUR_MIN + 1
+
+    # (code, area_key, daytype) -> 依小時索引的 [n, sum_pct, max_cur]
+    buckets: dict[tuple[str, str, str], list[list[float]]] = {}
+    for day_file in sorted(DAILY_DIR.glob("????-??-??.csv")):
+        d = date.fromisoformat(day_file.stem)
+        if not (start <= d <= today):
+            continue
+        daytype = "weekend" if d.weekday() >= 5 else "weekday"
+        for line in day_file.read_text(encoding="utf-8").splitlines():
+            if not line or line.startswith("timestamp,"):
+                continue
+            f = line.split(",")
+            hour = int(f[0][11:13])  # 時間戳固定為 ISO 格式，直接切片取小時
+            area = AREA_KEY.get(f[3])
+            if area is None or not (STATS_HOUR_MIN <= hour <= STATS_HOUR_MAX):
+                continue
+            row = buckets.setdefault(
+                (f[1], area, daytype), [[0, 0.0, 0] for _ in range(n_hours)]
+            )[hour - STATS_HOUR_MIN]
+            row[0] += 1
+            row[1] += float(f[6])
+            row[2] = max(row[2], int(f[4]))
+
+    # 統一形狀：每個出現過的中心都輸出 pool/gym × weekday/weekend 四組陣列（無樣本補零）
+    empty = [[0, 0, 0]] * n_hours
+    centers: dict[str, dict] = {}
+    for code in sorted({k[0] for k in buckets}):
+        centers[code] = {
+            area: {
+                daytype: [
+                    [n, round(s / n, 1) if n else 0, mx] for n, s, mx in hours
+                ]
+                for daytype in ("weekday", "weekend")
+                for hours in [buckets.get((code, area, daytype)) or empty]
+            }
+            for area in ("pool", "gym")
+        }
+
+    write_json(
+        DATA_DIR / "stats.json",
+        {
+            "generated_at": datetime.now(tz=TAIPEI_TZ).isoformat(timespec="seconds"),
+            "window_days": window_days,
+            "from": start.isoformat(),
+            "to": today.isoformat(),
+            "hours": [STATS_HOUR_MIN, STATS_HOUR_MAX],
+            "centers": centers,
+        },
+    )
+
+
 def dump_debug(err: FetchError | Exception) -> Path:
     DEBUG_DIR.mkdir(exist_ok=True)
     dump = DEBUG_DIR / "last_response.txt"
@@ -175,9 +241,14 @@ def dump_debug(err: FetchError | Exception) -> Path:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--csv", help="已棄用，僅為舊 workflow 相容而保留（會被忽略）")
+    ap.add_argument("--stats-only", action="store_true", help="不抓取，僅由現有每日檔案重建 stats.json")
     args = ap.parse_args()
     if args.csv:
         print(f"[warn] --csv 已棄用，改為固定寫入 {DAILY_DIR}/<日期>.csv", file=sys.stderr)
+    if args.stats_only:
+        write_stats_json()
+        print(f"[OK] 已重建 {DATA_DIR / 'stats.json'}")
+        return 0
 
     last_err: Exception | None = None
     with requests.Session() as session:
@@ -198,6 +269,7 @@ def main() -> int:
     day_file = append_daily_csv(readings)
     write_latest_json(readings)
     write_index_json()
+    write_stats_json()
 
     preview = " | ".join(f"{r.name[:2]}{r.area[0]} {r.current}/{r.capacity}" for r in readings[:6])
     print(f"[OK] {len(readings)} 筆 → {day_file}（{preview} ...）")
