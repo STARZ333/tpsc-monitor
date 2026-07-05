@@ -33,6 +33,11 @@
   --bad: #e0464c;
   --closed: #98a1ab;
   --track: #edf0f3;
+  --heat1: #16a26d;
+  --heat2: #7db54b;
+  --heat3: #d9a514;
+  --heat4: #e07b28;
+  --heat5: #dd4a50;
   --shadow: 0 1px 2px rgba(16,24,40,.05), 0 2px 8px rgba(16,24,40,.05);
   --radius: 14px;
 }
@@ -52,6 +57,11 @@
     --bad: #ef6b6f;
     --closed: #6d7680;
     --track: #232a32;
+    --heat1: #2fbd8b;
+    --heat2: #93c95f;
+    --heat3: #eab838;
+    --heat4: #ef9440;
+    --heat5: #ef6b6f;
     --shadow: 0 1px 2px rgba(0,0,0,.35);
   }
 }
@@ -106,7 +116,7 @@ button:disabled:hover { border-color: var(--border); }
   gap: 12px; margin-bottom: 14px; }
 .stat { display: flex; flex-direction: column; gap: 6px; }
 .stat .label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; }
-.stat .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 .stat .big { font-size: 2rem; font-weight: 700; line-height: 1.15; font-variant-numeric: tabular-nums; }
 .stat .big .cap { font-size: 1.05rem; font-weight: 500; color: var(--muted); }
 .stat .pct { font-size: .88rem; color: var(--muted); font-variant-numeric: tabular-nums; }
@@ -135,6 +145,26 @@ button:disabled:hover { border-color: var(--border); }
 .ov .row .tag { flex: none; width: 1.2em; }
 .ov .row .bar { flex: 1; height: 6px; }
 .ov .row .val { flex: none; min-width: 3.2em; text-align: right; }
+
+/* 冷門時段熱力圖 */
+.quiet-area + .quiet-area { margin-top: 18px; border-top: 1px solid var(--border); padding-top: 14px; }
+.quiet-area .ahead { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: .95rem; }
+.quiet-take { margin: 6px 0 0; font-size: .88rem; color: var(--muted); }
+.quiet-take strong { color: var(--text); font-weight: 600; }
+.heat { display: grid; grid-template-columns: max-content repeat(8, 1fr); gap: 4px;
+  align-items: center; margin-top: 10px; }
+.heat .hlabel { font-size: .7rem; color: var(--muted); text-align: center; }
+.heat .rlabel { font-size: .78rem; color: var(--muted); padding-right: 4px; white-space: nowrap; }
+.heat .cell { height: 26px; border-radius: 6px; background: var(--track); }
+.heat .cell.sparse { opacity: .38; }
+.heat .cell.hq1 { background: var(--heat1); } .heat .cell.hq2 { background: var(--heat2); }
+.heat .cell.hq3 { background: var(--heat3); } .heat .cell.hq4 { background: var(--heat4); }
+.heat .cell.hq5 { background: var(--heat5); }
+.heat-legend { display: flex; align-items: center; gap: 7px; margin-top: 10px;
+  font-size: .74rem; color: var(--muted); flex-wrap: wrap; }
+.heat-legend .grad { width: 88px; height: 8px; border-radius: 999px;
+  background: linear-gradient(90deg, var(--heat1), var(--heat3), var(--heat5)); }
+.heat-legend .chip { width: 14px; height: 8px; border-radius: 3px; background: var(--track); }
 
 footer { margin-top: 22px; color: var(--muted); font-size: .82rem; }
 footer a { color: inherit; }
@@ -203,6 +233,17 @@ footer a { color: inherit; }
     </div>
   </section>
 
+  <section class="card chart-card" id="quietCard" hidden>
+    <h2>冷門時段參考（過去 30 天）</h2>
+    <p class="sub" id="quietSub"></p>
+    <div id="quietBody"></div>
+    <div class="heat-legend">
+      <span>空</span><span class="grad"></span><span>滿</span>
+      <span style="margin-left:10px" class="chip"></span><span>未開放</span>
+      <span>・半透明＝樣本較少（不列入結論）</span>
+    </div>
+  </section>
+
   <section class="card">
     <h2>全市即時總覽</h2>
     <p class="sub">最新一次抓取的各中心佔用率（泳＝游泳池、健＝健身房），點擊切換中心</p>
@@ -239,6 +280,7 @@ const state = {
   mode: localStorage.getItem('tpsc.mode') || 'both',
   dates: [],            // index.json：有資料的日期（升冪）
   latest: null,         // latest.json
+  stats: null,          // stats.json：過去 30 天冷門時段統計
   rows: [],             // 目前所選日期的資料列
   dayLoaded: '',        // rows 對應的日期
 };
@@ -389,6 +431,82 @@ function renderOverview() {
       <div class="name">${c.name.replace('運動中心', '')}</div>
       ${ovRow('泳', c.pool)}${ovRow('健', c.gym)}
     </button>`).join('');
+}
+
+/* ---------- 冷門時段（過去 30 天）---------- */
+
+async function loadStats() {
+  try {
+    state.stats = await (await fetchOk(`${DATA_BASE}/stats.json`)).json();
+  } catch (e) {
+    state.stats = null;
+  }
+  renderQuiet();
+}
+
+// 兩小時區塊合併：[n, 加權平均佔用, 期間最大人數]
+function quietBlocks(hourCells) {
+  const blocks = [];
+  for (let b = 0; b < 8; b++) {
+    const pair = hourCells.slice(b * 2, b * 2 + 2);
+    const n = pair.reduce((s, c) => s + c[0], 0);
+    const avg = n ? pair.reduce((s, c) => s + c[1] * c[0], 0) / n : 0;
+    const max = Math.max(...pair.map(c => c[2]));
+    blocks.push({ from: 6 + b * 2, to: 8 + b * 2, n, avg, max });
+  }
+  return blocks;
+}
+
+const blockLabel = b => `${String(b.from).padStart(2, '0')}–${String(b.to).padStart(2, '0')}`;
+const MIN_SAMPLES = 3;
+
+function heatClass(avg) {
+  return avg < 15 ? 'hq1' : avg < 30 ? 'hq2' : avg < 45 ? 'hq3' : avg < 65 ? 'hq4' : 'hq5';
+}
+
+function quietRow(label, blocks) {
+  const cells = blocks.map(b => {
+    if (!b.max) return `<div class="cell" title="${label} ${blockLabel(b)} 時：未開放"></div>`;
+    const cls = heatClass(b.avg) + (b.n < MIN_SAMPLES ? ' sparse' : '');
+    return `<div class="cell ${cls}" title="${label} ${blockLabel(b)} 時：平均佔用 ${b.avg.toFixed(0)}%（${b.n} 筆）"></div>`;
+  }).join('');
+  return `<div class="rlabel">${label}</div>${cells}`;
+}
+
+function takeaway(label, blocks) {
+  const ranked = blocks.filter(b => b.max > 0 && b.n >= MIN_SAMPLES)
+    .sort((a, b) => a.avg - b.avg).slice(0, 2);
+  if (!ranked.length) return `${label}：樣本不足`;
+  return `${label}最少人：<strong>${ranked.map(blockLabel).join('、')} 時</strong>`;
+}
+
+function renderQuiet() {
+  const card = $('quietCard');
+  const data = state.stats?.centers?.[state.center];
+  if (!data) { card.hidden = true; return; }
+  card.hidden = false;
+  $('quietSub').textContent =
+    `${findCenter(state.center)?.name || state.center}・統計 ${state.stats.from} ～ ${state.stats.to} 營業時段（06–22 時）的平均佔用率`;
+
+  const areas = state.mode === 'both' ? ['pool', 'gym'] : [state.mode];
+  const hourLabels = Array.from({ length: 8 }, (_, b) =>
+    `<div class="hlabel">${String(6 + b * 2).padStart(2, '0')}</div>`).join('');
+
+  $('quietBody').innerHTML = areas.map(area => {
+    const wd = quietBlocks(data[area].weekday);
+    const we = quietBlocks(data[area].weekend);
+    const inner = wd.concat(we).some(b => b.max > 0)
+      ? `<p class="quiet-take">${takeaway('平日', wd)}・${takeaway('週末', we)}</p>
+         <div class="heat">
+           <div></div>${hourLabels}
+           ${quietRow('平日', wd)}
+           ${quietRow('週末', we)}
+         </div>`
+      : `<p class="quiet-take">尚無足夠資料（期間內未見開放）</p>`;
+    return `<div class="quiet-area">
+      <div class="ahead"><span class="swatch" style="background:var(--${area})"></span>${AREA_LABEL[area]}</div>
+      ${inner}</div>`;
+  }).join('');
 }
 
 /* ---------- 呈現：中心選單 ---------- */
@@ -573,6 +691,7 @@ function selectCenter(code) {
   renderNowCards();
   renderOverview();
   renderCharts();
+  renderQuiet();
 }
 
 $('centerSelect').addEventListener('change', e => selectCenter(e.target.value));
@@ -587,6 +706,7 @@ $('areaSeg').addEventListener('click', e => {
   localStorage.setItem('tpsc.mode', state.mode);
   for (const b of $('areaSeg').children) b.classList.toggle('on', b === btn);
   renderCharts();
+  renderQuiet();
 });
 $('datePicker').addEventListener('change', e => {
   if (e.target.value) gotoDate(e.target.value);
@@ -597,9 +717,12 @@ $('todayBtn').addEventListener('click', () => gotoDate(DateTime.now().setZone(TZ
 
 async function refresh() {
   const changed = await loadLatest();
-  const today = DateTime.now().setZone(TZ).toISODate();
-  if (changed && state.date === state.dayLoaded && state.date === today) {
-    await loadDay(state.date);   // 只有看今天且真的有新資料才重抓當日檔
+  if (changed) {
+    loadStats();   // 資料更新時統計也已在 CI 重新生成
+    const today = DateTime.now().setZone(TZ).toISODate();
+    if (state.date === state.dayLoaded && state.date === today) {
+      await loadDay(state.date);   // 只有看今天且真的有新資料才重抓當日檔
+    }
   }
   updateNavButtons();
 }
@@ -617,7 +740,7 @@ document.addEventListener('visibilitychange', () => {
 
   await loadIndex();
   await loadLatest();
-  await loadDay(state.date);
+  await Promise.all([loadDay(state.date), loadStats()]);
   updateNavButtons();
   setInterval(refresh, 60 * 1000);
 })();
