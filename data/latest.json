@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-07T04:31:55+08:00",
+  "scraped_at": "2026-07-07T06:00:13+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -41,7 +41,7 @@
       "code": "JJSC",
       "name": "中正運動中心",
       "pool": {
-        "current": 0,
+        "current": 1,
         "capacity": 200
       },
       "gym": {
@@ -65,7 +65,7 @@
       "code": "NHSC",
       "name": "內湖運動中心",
       "pool": {
-        "current": 0,
+        "current": 3,
         "capacity": 200
       },
       "gym": {
@@ -89,7 +89,7 @@
       "code": "SSSC",
       "name": "松山運動中心",
       "pool": {
-        "current": 0,
+        "current": 1,
         "capacity": 400
       },
       "gym": {
@@ -137,7 +137,7 @@
       "code": "ZSSC",
       "name": "中山運動中心",
       "pool": {
-        "current": 0,
+        "current": 2,
         "capacity": 150
       },
       "gym": {
