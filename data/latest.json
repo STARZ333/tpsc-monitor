@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-10T21:31:29+08:00",
+  "scraped_at": "2026-07-11T00:00:06+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -29,7 +29,7 @@
       "code": "DTSC",
       "name": "大同運動中心",
       "pool": {
-        "current": 2,
+        "current": 0,
         "capacity": 250
       },
       "gym": {
