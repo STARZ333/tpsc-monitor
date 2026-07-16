@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-17T04:46:01+08:00",
+  "scraped_at": "2026-07-17T05:48:50+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -41,7 +41,7 @@
       "code": "JJSC",
       "name": "中正運動中心",
       "pool": {
-        "current": 0,
+        "current": 1,
         "capacity": 200
       },
       "gym": {
