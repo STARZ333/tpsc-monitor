@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-16T22:51:35+08:00",
+  "scraped_at": "2026-07-17T00:09:58+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -89,7 +89,7 @@
       "code": "SSSC",
       "name": "松山運動中心",
       "pool": {
-        "current": 63,
+        "current": 0,
         "capacity": 400
       },
       "gym": {
