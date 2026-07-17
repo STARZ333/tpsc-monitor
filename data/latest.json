@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-17T23:34:48+08:00",
+  "scraped_at": "2026-07-18T00:43:55+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -93,7 +93,7 @@
         "capacity": 400
       },
       "gym": {
-        "current": 6,
+        "current": 0,
         "capacity": 100
       }
     },
