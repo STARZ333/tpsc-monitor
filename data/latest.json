@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-18T22:09:27+08:00",
+  "scraped_at": "2026-07-18T23:14:37+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -29,11 +29,11 @@
       "code": "DTSC",
       "name": "大同運動中心",
       "pool": {
-        "current": 74,
+        "current": 0,
         "capacity": 250
       },
       "gym": {
-        "current": 9,
+        "current": 0,
         "capacity": 80
       }
     },
@@ -45,7 +45,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 84,
+        "current": 0,
         "capacity": 150
       }
     },
@@ -69,7 +69,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 52,
+        "current": 0,
         "capacity": 130
       }
     },
@@ -89,7 +89,7 @@
       "code": "SSSC",
       "name": "松山運動中心",
       "pool": {
-        "current": 76,
+        "current": 63,
         "capacity": 400
       },
       "gym": {
@@ -117,7 +117,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 6,
+        "current": 0,
         "capacity": 110
       }
     },
@@ -137,11 +137,11 @@
       "code": "ZSSC",
       "name": "中山運動中心",
       "pool": {
-        "current": 6,
+        "current": 0,
         "capacity": 150
       },
       "gym": {
-        "current": 5,
+        "current": 0,
         "capacity": 50
       }
     }
