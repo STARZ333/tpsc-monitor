@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-25T04:51:36+08:00",
+  "scraped_at": "2026-07-25T05:56:52+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -137,7 +137,7 @@
       "code": "ZSSC",
       "name": "中山運動中心",
       "pool": {
-        "current": 0,
+        "current": 1,
         "capacity": 150
       },
       "gym": {
