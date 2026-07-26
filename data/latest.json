@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-07-26T22:01:52+08:00",
+  "scraped_at": "2026-07-26T23:15:00+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -21,7 +21,7 @@
         "capacity": 250
       },
       "gym": {
-        "current": 2,
+        "current": 0,
         "capacity": 80
       }
     },
@@ -29,11 +29,11 @@
       "code": "DTSC",
       "name": "大同運動中心",
       "pool": {
-        "current": 224,
+        "current": 0,
         "capacity": 250
       },
       "gym": {
-        "current": 15,
+        "current": 0,
         "capacity": 80
       }
     },
@@ -41,11 +41,11 @@
       "code": "JJSC",
       "name": "中正運動中心",
       "pool": {
-        "current": 3,
+        "current": 0,
         "capacity": 200
       },
       "gym": {
-        "current": 25,
+        "current": 0,
         "capacity": 150
       }
     },
@@ -69,7 +69,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 67,
+        "current": 0,
         "capacity": 130
       }
     },
@@ -77,11 +77,11 @@
       "code": "SLSC",
       "name": "士林運動中心",
       "pool": {
-        "current": 5,
+        "current": 0,
         "capacity": 200
       },
       "gym": {
-        "current": 2,
+        "current": 0,
         "capacity": 100
       }
     },
@@ -89,7 +89,7 @@
       "code": "SSSC",
       "name": "松山運動中心",
       "pool": {
-        "current": 78,
+        "current": 52,
         "capacity": 400
       },
       "gym": {
@@ -105,7 +105,7 @@
         "capacity": 100
       },
       "gym": {
-        "current": 26,
+        "current": 0,
         "capacity": 150
       }
     },
@@ -117,7 +117,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 9,
+        "current": 0,
         "capacity": 110
       }
     },
@@ -137,11 +137,11 @@
       "code": "ZSSC",
       "name": "中山運動中心",
       "pool": {
-        "current": 10,
+        "current": 0,
         "capacity": 150
       },
       "gym": {
-        "current": -5,
+        "current": 0,
         "capacity": 50
       }
     }
