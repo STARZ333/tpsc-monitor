@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-08-01T04:11:35+08:00",
+  "scraped_at": "2026-08-01T05:29:16+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -30,11 +30,11 @@
       "name": "大同運動中心",
       "pool": {
         "current": 0,
-        "capacity": 0
+        "capacity": 250
       },
       "gym": {
         "current": 0,
-        "capacity": 0
+        "capacity": 80
       }
     },
     {
