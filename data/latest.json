@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-08-05T00:32:36+08:00",
+  "scraped_at": "2026-08-05T02:15:33+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -95,18 +95,6 @@
       "gym": {
         "current": 0,
         "capacity": 100
-      }
-    },
-    {
-      "code": "WHSC",
-      "name": "萬華運動中心",
-      "pool": {
-        "current": 61,
-        "capacity": 100
-      },
-      "gym": {
-        "current": 0,
-        "capacity": 150
       }
     },
     {
