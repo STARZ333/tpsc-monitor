@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-08-11T22:06:31+08:00",
+  "scraped_at": "2026-08-11T23:14:19+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -33,7 +33,7 @@
         "capacity": 250
       },
       "gym": {
-        "current": 12,
+        "current": 0,
         "capacity": 80
       }
     },
@@ -45,7 +45,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 26,
+        "current": 0,
         "capacity": 150
       }
     },
@@ -69,7 +69,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 55,
+        "current": 0,
         "capacity": 130
       }
     },
@@ -89,11 +89,11 @@
       "code": "SSSC",
       "name": "松山運動中心",
       "pool": {
-        "current": 105,
+        "current": 73,
         "capacity": 400
       },
       "gym": {
-        "current": 17,
+        "current": 15,
         "capacity": 100
       }
     },
@@ -101,7 +101,7 @@
       "code": "WHSC",
       "name": "萬華運動中心",
       "pool": {
-        "current": 30,
+        "current": 0,
         "capacity": 100
       },
       "gym": {
@@ -113,11 +113,11 @@
       "code": "WSSC",
       "name": "文山運動中心",
       "pool": {
-        "current": 5,
+        "current": 0,
         "capacity": 200
       },
       "gym": {
-        "current": 10,
+        "current": 0,
         "capacity": 110
       }
     },
@@ -141,7 +141,7 @@
         "capacity": 150
       },
       "gym": {
-        "current": 3,
+        "current": 0,
         "capacity": 50
       }
     }
