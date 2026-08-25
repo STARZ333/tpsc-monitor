@@ -1,15 +1,15 @@
 {
-  "scraped_at": "2026-08-25T19:57:06+08:00",
+  "scraped_at": "2026-08-25T20:57:09+08:00",
   "centers": [
     {
       "code": "BTSC",
       "name": "北投運動中心",
       "pool": {
-        "current": 415,
+        "current": 441,
         "capacity": 200
       },
       "gym": {
-        "current": 39,
+        "current": 45,
         "capacity": 60
       }
     },
@@ -17,7 +17,19 @@
       "code": "DASC",
       "name": "大安運動中心",
       "pool": {
-        "current": 58,
+        "current": 52,
+        "capacity": 250
+      },
+      "gym": {
+        "current": 63,
+        "capacity": 80
+      }
+    },
+    {
+      "code": "DTSC",
+      "name": "大同運動中心",
+      "pool": {
+        "current": 5,
         "capacity": 250
       },
       "gym": {
@@ -26,26 +38,14 @@
       }
     },
     {
-      "code": "DTSC",
-      "name": "大同運動中心",
-      "pool": {
-        "current": 13,
-        "capacity": 250
-      },
-      "gym": {
-        "current": 72,
-        "capacity": 80
-      }
-    },
-    {
       "code": "JJSC",
       "name": "中正運動中心",
       "pool": {
-        "current": 59,
+        "current": 36,
         "capacity": 200
       },
       "gym": {
-        "current": 146,
+        "current": 129,
         "capacity": 150
       }
     },
@@ -65,11 +65,11 @@
       "code": "NHSC",
       "name": "內湖運動中心",
       "pool": {
-        "current": 119,
+        "current": 95,
         "capacity": 200
       },
       "gym": {
-        "current": 115,
+        "current": 109,
         "capacity": 130
       }
     },
@@ -77,11 +77,11 @@
       "code": "SLSC",
       "name": "士林運動中心",
       "pool": {
-        "current": 86,
+        "current": 61,
         "capacity": 200
       },
       "gym": {
-        "current": 57,
+        "current": 70,
         "capacity": 100
       }
     },
@@ -89,11 +89,11 @@
       "code": "SSSC",
       "name": "松山運動中心",
       "pool": {
-        "current": 219,
+        "current": 184,
         "capacity": 400
       },
       "gym": {
-        "current": 84,
+        "current": 93,
         "capacity": 100
       }
     },
@@ -101,11 +101,11 @@
       "code": "WHSC",
       "name": "萬華運動中心",
       "pool": {
-        "current": 37,
+        "current": 40,
         "capacity": 100
       },
       "gym": {
-        "current": 87,
+        "current": 55,
         "capacity": 150
       }
     },
@@ -113,11 +113,11 @@
       "code": "WSSC",
       "name": "文山運動中心",
       "pool": {
-        "current": 42,
+        "current": 21,
         "capacity": 200
       },
       "gym": {
-        "current": 69,
+        "current": 44,
         "capacity": 110
       }
     },
@@ -137,11 +137,11 @@
       "code": "ZSSC",
       "name": "中山運動中心",
       "pool": {
-        "current": 21,
+        "current": 20,
         "capacity": 150
       },
       "gym": {
-        "current": 38,
+        "current": 34,
         "capacity": 50
       }
     }
