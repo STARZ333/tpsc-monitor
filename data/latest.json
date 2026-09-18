@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-09-19T01:46:12+08:00",
+  "scraped_at": "2026-09-19T04:00:45+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -53,7 +53,7 @@
       "code": "NGSC",
       "name": "南港運動中心",
       "pool": {
-        "current": 1,
+        "current": 0,
         "capacity": 200
       },
       "gym": {
