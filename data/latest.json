@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-10-01T10:27:49+08:00",
+  "scraped_at": "2026-10-01T17:20:28+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -17,11 +17,11 @@
       "code": "DASC",
       "name": "大安運動中心",
       "pool": {
-        "current": 7,
+        "current": 66,
         "capacity": 250
       },
       "gym": {
-        "current": 28,
+        "current": 48,
         "capacity": 80
       }
     },
@@ -33,7 +33,7 @@
         "capacity": 250
       },
       "gym": {
-        "current": 42,
+        "current": 56,
         "capacity": 80
       }
     },
@@ -41,11 +41,11 @@
       "code": "JJSC",
       "name": "中正運動中心",
       "pool": {
-        "current": 0,
+        "current": 71,
         "capacity": 200
       },
       "gym": {
-        "current": 66,
+        "current": 111,
         "capacity": 150
       }
     },
@@ -53,11 +53,11 @@
       "code": "NGSC",
       "name": "南港運動中心",
       "pool": {
-        "current": 19,
+        "current": 50,
         "capacity": 200
       },
       "gym": {
-        "current": 36,
+        "current": 70,
         "capacity": 100
       }
     },
@@ -65,11 +65,11 @@
       "code": "NHSC",
       "name": "內湖運動中心",
       "pool": {
-        "current": 14,
+        "current": 64,
         "capacity": 200
       },
       "gym": {
-        "current": 31,
+        "current": 63,
         "capacity": 130
       }
     },
@@ -77,11 +77,11 @@
       "code": "SLSC",
       "name": "士林運動中心",
       "pool": {
-        "current": 6,
+        "current": 23,
         "capacity": 200
       },
       "gym": {
-        "current": 39,
+        "current": 56,
         "capacity": 100
       }
     },
@@ -89,11 +89,11 @@
       "code": "SSSC",
       "name": "松山運動中心",
       "pool": {
-        "current": 17,
+        "current": 57,
         "capacity": 400
       },
       "gym": {
-        "current": 26,
+        "current": 58,
         "capacity": 100
       }
     },
@@ -113,11 +113,11 @@
       "code": "WSSC",
       "name": "文山運動中心",
       "pool": {
-        "current": 6,
+        "current": 48,
         "capacity": 200
       },
       "gym": {
-        "current": 23,
+        "current": 41,
         "capacity": 110
       }
     },
