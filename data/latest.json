@@ -1,15 +1,15 @@
 {
-  "scraped_at": "2026-10-17T21:56:39+08:00",
+  "scraped_at": "2026-10-18T00:55:07+08:00",
   "centers": [
     {
       "code": "BTSC",
       "name": "北投運動中心",
       "pool": {
-        "current": 436,
+        "current": 0,
         "capacity": 200
       },
       "gym": {
-        "current": 10,
+        "current": 0,
         "capacity": 60
       }
     },
@@ -17,11 +17,11 @@
       "code": "DASC",
       "name": "大安運動中心",
       "pool": {
-        "current": 27,
+        "current": 0,
         "capacity": 250
       },
       "gym": {
-        "current": 15,
+        "current": 0,
         "capacity": 80
       }
     },
@@ -33,7 +33,7 @@
         "capacity": 250
       },
       "gym": {
-        "current": 31,
+        "current": 0,
         "capacity": 80
       }
     },
@@ -41,11 +41,11 @@
       "code": "JJSC",
       "name": "中正運動中心",
       "pool": {
-        "current": 31,
+        "current": 0,
         "capacity": 200
       },
       "gym": {
-        "current": 36,
+        "current": 0,
         "capacity": 150
       }
     },
@@ -57,7 +57,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 32,
+        "current": 0,
         "capacity": 100
       }
     },
@@ -69,7 +69,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 53,
+        "current": 0,
         "capacity": 130
       }
     },
@@ -77,11 +77,11 @@
       "code": "SLSC",
       "name": "士林運動中心",
       "pool": {
-        "current": 19,
+        "current": 0,
         "capacity": 200
       },
       "gym": {
-        "current": 13,
+        "current": 0,
         "capacity": 100
       }
     },
@@ -89,7 +89,7 @@
       "code": "SSSC",
       "name": "松山運動中心",
       "pool": {
-        "current": 67,
+        "current": 0,
         "capacity": 400
       },
       "gym": {
@@ -105,7 +105,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 14,
+        "current": 0,
         "capacity": 110
       }
     },
