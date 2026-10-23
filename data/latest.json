@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-10-23T18:13:40+08:00",
+  "scraped_at": "2026-10-23T23:09:26+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -102,11 +102,11 @@
       "name": "文山運動中心",
       "pool": {
         "current": 0,
-        "capacity": 200
+        "capacity": 0
       },
       "gym": {
         "current": 0,
-        "capacity": 110
+        "capacity": 0
       }
     },
     {
