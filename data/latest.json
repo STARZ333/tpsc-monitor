@@ -1,5 +1,5 @@
 {
-  "scraped_at": "2026-10-26T22:13:30+08:00",
+  "scraped_at": "2026-10-27T03:58:14+08:00",
   "centers": [
     {
       "code": "BTSC",
@@ -33,7 +33,7 @@
         "capacity": 250
       },
       "gym": {
-        "current": 9,
+        "current": 0,
         "capacity": 80
       }
     },
@@ -41,11 +41,11 @@
       "code": "JJSC",
       "name": "中正運動中心",
       "pool": {
-        "current": 10,
+        "current": 0,
         "capacity": 200
       },
       "gym": {
-        "current": 70,
+        "current": 0,
         "capacity": 160
       }
     },
@@ -57,7 +57,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 13,
+        "current": 0,
         "capacity": 100
       }
     },
@@ -69,7 +69,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 62,
+        "current": 0,
         "capacity": 130
       }
     },
@@ -77,11 +77,11 @@
       "code": "SSSC",
       "name": "松山運動中心",
       "pool": {
-        "current": 41,
+        "current": 0,
         "capacity": 400
       },
       "gym": {
-        "current": 31,
+        "current": 0,
         "capacity": 100
       }
     },
@@ -93,7 +93,7 @@
         "capacity": 200
       },
       "gym": {
-        "current": 18,
+        "current": 0,
         "capacity": 110
       }
     },
